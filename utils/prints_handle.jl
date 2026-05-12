@@ -1,32 +1,14 @@
-export print_table, print_rational
+export repl_matrix_with_comment
 
-function print_table(M::Matrix{T}, variables::Vector{String}, base::Vector{String}) where T
-    
-    println("| base | ", join(variables, " | "), " | b ", "|")
-    for row_m in eachrow(M)
-        line = string("|------| ", join(print_rational.(row_m), " | "), "|")
-        println(line)
-    end
-end
-
-function print_pivot(M::Matrix{T}, variables::Vector{String}, base::Vector{String}, i::Int, operation::String) where T
-    println("| base | ", join(variables, " | "), " | b ", "|")
-
-    for index in axes(M, 1)
-        line = string("|------| ", join(print_rational.(M[index, :]), " | "), "|")
-        if i == index
-            line *= " <-- ($operation)"
+# creating a function to print the matrix with comments on the right side of the output 
+function repl_matrix_with_comment(M::AbstractMatrix; comments::Dict{Int,String})
+    txt = sprint(io->show(io, MIME("text/plain"), M))
+    lines = split(txt, '\n', keepempty=false)
+    for (k,v) in comments
+        if 1 <= k <= length(lines) && !isempty(v)
+            # +1 because the first line of the matrix output is the header
+            lines[k+1] *= "  --> " * v
         end
-        println(line)
     end
-
-end
-
-function print_rational(n)
-    
-    if denominator(n) == 1
-        return string(numerator(n))
-    else
-        return string(numerator(n), "/", denominator(n))
-    end
+    return join(lines, '\n')
 end
