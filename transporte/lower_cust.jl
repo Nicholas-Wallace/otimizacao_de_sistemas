@@ -48,32 +48,66 @@ function lower_cust(C::Matrix{T}, oferta::Vector{T}, demanda::Vector{T}) where T
 
 end
 
-function sort_base(A::Matrix{T},base::Vector{T}) where T
-    sort!(base)
+function sort_base(A::Matrix{Rational}, base::Set{Int}, length_demanda::Int)
+    
+    # as colunas multiplas de length_demanda sempre estao pivotadas
+    sorted_base = zeros(Int, length(base))
 
-    for i in base
+    for var in base
+        # se o elemento for multiplo de length_demanda
+        if var%length_demanda == 0
+            pop!(base, var) # remove da base
+            sorted_base[Int(var/length_demanda)] = Int(var) # add na posicao respectiva
+        end
+    end
+
+    println("Base ordenada parcialmente: ", sorted_base)
+
+    # add as ultimas variaveis nos espaços restantes
+    function add_remaining_variables(sorted_base, base, A)
+        for (i, var) in enumerate(sorted_base)
+            if var == 0
+                for j in base # descobrir a proxima variavel que nao é zero na linha i
+                    if A[i, j] != 0 
+                        # nao podemos simplesmente colocar o primerio que encaixar
+                        # é preciso verificar se nao tem outro que o unico lugar dele seria aí
+                        pop!(base, j) 
+                        sorted_base[i] = j
+                    end
+                end
+            end
+        end
+    end
+
+    println("Base ordenada: ", sorted_base)
+
+    if any(sorted_base .== 0)
+        println("Erro: Base não foi ordenada corretamente.")
+        println("Tentando denovo")
 
 
 
     end
 
+    return sorted_base
+
 end
 
 # criando a mtrix de restrições e tirando a ultima linha para o rank ser igual a m+n - 1 
 # talvez fique mais claro criar com vcat e hcat
-# function create_constraints_matrix(length_oferta, length_demanda)
-#     A = zeros(Rational, length_oferta + length_demanda - 1, length_oferta*length_demanda)
+# function create_constraints_matrix(oferta, demanda)
+#     A = zeros(Rational, oferta + demanda - 1, oferta*demanda)
 
-#     for i in 1:length_oferta
-#         for j in 1:length_demanda
-#             A[i,j+((i-1)*(length_oferta + 1))] = 1
+#     for i in 1:oferta
+#         for j in 1:demanda
+#             A[i,j+((i-1)*(oferta + 1))] = 1
 #         end
 #     end
 
-#     for i in length_oferta+1:length_oferta+length_demanda-1
-#         for j in 1:length_demanda:size(A, 2)
+#     for i in oferta+1:oferta+demanda-1
+#         for j in 1:demanda:size(A, 2)
 #             println(j)
-#             A[i,j + i - length_oferta - 1] = 1
+#             A[i,j + i - oferta - 1] = 1
 #         end
 #     end
 
@@ -81,7 +115,7 @@ end
 #     return A
 # end
 
-function create_constraints_matrix(length_oferta, length_demanda)
+function create_constraints_matrix(length_oferta::Int, length_demanda::Int)
     A = ones(Rational, 1, length_demanda)
     A = hcat(A, zeros(Rational, 1, (length_oferta - 1)*length_demanda))
 
@@ -93,16 +127,13 @@ function create_constraints_matrix(length_oferta, length_demanda)
         A = vcat(A, line)
     end
 
-    last_block = I(length_oferta)
-    @show last_block
-    for _ in 1:length_oferta
-        last_block = hcat(last_block, zeros(Rational, length_oferta, 1))
+    last_block = I(length_demanda)
+    for _ in 2:length_oferta
+        last_block = hcat(last_block, I(length_demanda))
     end
-
-    @show last_block
-
     A = vcat(A, last_block)
 
+    A = A[1:end-1, :]
 
-    @show A
+    return A
 end
