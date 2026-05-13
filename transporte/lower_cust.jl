@@ -1,3 +1,4 @@
+import LinearAlgebra
 
 # Recebe a matriz dos custos e os limites de oferta/demanda e retorna a solução inicial básica compativel usando o método do custo mínimo.
 function lower_cust(C::Matrix{T}, oferta::Vector{T}, demanda::Vector{T}) where T
@@ -47,22 +48,61 @@ function lower_cust(C::Matrix{T}, oferta::Vector{T}, demanda::Vector{T}) where T
 
 end
 
-function sort_base(C::Matrix{T},base::Vector{T}) where T
+function sort_base(A::Matrix{T},base::Vector{T}) where T
     sort!(base)
 
+    for i in base
 
+
+
+    end
 
 end
 
 # criando a mtrix de restrições e tirando a ultima linha para o rank ser igual a m+n - 1 
-function create_constraints_matrix(length_oferta, length_demanda)
-    A = zeros(Rational, length_oferta + length_demanda - 1, length_oferta*length_demanda)
+# talvez fique mais claro criar com vcat e hcat
+# function create_constraints_matrix(length_oferta, length_demanda)
+#     A = zeros(Rational, length_oferta + length_demanda - 1, length_oferta*length_demanda)
 
-    for i in 1:length_oferta
-        for j in j:length_demanda
-            A[i,j+(i-1)*length_oferta + 1] = 1
+#     for i in 1:length_oferta
+#         for j in 1:length_demanda
+#             A[i,j+((i-1)*(length_oferta + 1))] = 1
+#         end
+#     end
+
+#     for i in length_oferta+1:length_oferta+length_demanda-1
+#         for j in 1:length_demanda:size(A, 2)
+#             println(j)
+#             A[i,j + i - length_oferta - 1] = 1
+#         end
+#     end
+
+
+#     return A
+# end
+
+function create_constraints_matrix(length_oferta, length_demanda)
+    A = ones(Rational, 1, length_demanda)
+    A = hcat(A, zeros(Rational, 1, (length_oferta - 1)*length_demanda))
+
+    for i in 2:length_oferta 
+        line = zeros(Rational, 1, length_demanda)
+        for j in 2:length_oferta
+            i == j ? line = hcat(line, ones(Rational, 1, length_demanda)) : line = hcat(line, zeros(Rational, 1, length_demanda))
         end
+        A = vcat(A, line)
     end
 
-    return A
+    last_block = I(length_oferta)
+    @show last_block
+    for _ in 1:length_oferta
+        last_block = hcat(last_block, zeros(Rational, length_oferta, 1))
+    end
+
+    @show last_block
+
+    A = vcat(A, last_block)
+
+
+    @show A
 end
