@@ -9,9 +9,10 @@ function lower_cust(C::Matrix{T}, oferta::Vector{T}, demanda::Vector{T}) where T
 
     rank = size(C, 1)+size(C, 2) -1
 
+    # Criar a matrix da base inicial
+    base = zeros(T, rank)
+
     for i in 1:rank
-        # Criar a matrix da base inicial
-        base = zeros(T, rank)
 
         # Step 1 - Encontrar o menor custo na matrix
         index = argmin(C)
@@ -42,9 +43,8 @@ function lower_cust(C::Matrix{T}, oferta::Vector{T}, demanda::Vector{T}) where T
         # Step 5 - Marcar o custo como infinito para não ser escolhido novamente
         C[index] = typemax(T)
     end
-
-
     
+    return base
 
 end
 
@@ -64,16 +64,14 @@ function sort_base(A::Matrix{Rational}, base::Set{Int}, length_demanda::Int)
     println("Base ordenada parcialmente: ", sorted_base)
 
     # add as ultimas variaveis nos espaços restantes
-    function add_remaining_variables(sorted_base, base, A)
-        for (i, var) in enumerate(sorted_base)
-            if var == 0
-                for j in base # descobrir a proxima variavel que nao é zero na linha i
-                    if A[i, j] != 0 
-                        # nao podemos simplesmente colocar o primerio que encaixar
-                        # é preciso verificar se nao tem outro que o unico lugar dele seria aí
-                        pop!(base, j) 
-                        sorted_base[i] = j
-                    end
+    for (i, var) in enumerate(sorted_base)
+        if var == 0
+            for j in base # descobrir a proxima variavel que nao é zero na linha i
+                if A[i, j] != 0 
+                    # nao podemos simplesmente colocar o primerio que encaixar
+                    # é preciso verificar se nao tem outro que o unico lugar dele seria aí
+                    pop!(base, j) 
+                    sorted_base[i] = j
                 end
             end
         end
@@ -85,7 +83,9 @@ function sort_base(A::Matrix{Rational}, base::Set{Int}, length_demanda::Int)
         println("Erro: Base não foi ordenada corretamente.")
         println("Tentando denovo")
 
-
+        for (i, var) in enumerate(sorted_base)
+            println("quero ver quantas vezes essa variavel que sobrou poderia ter entrado")
+        end
 
     end
 
