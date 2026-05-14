@@ -1,5 +1,7 @@
 import LinearAlgebra
 
+export lower_cust, sort_base, create_constraints_matrix
+
 # Recebe a matriz dos custos e os limites de oferta/demanda e retorna a solução inicial básica compativel usando o método do custo mínimo.
 function lower_cust(C::Matrix{T}, oferta::Vector{T}, demanda::Vector{T}) where T
     # Checar dimensionalidade
@@ -116,13 +118,13 @@ end
 # end
 
 function create_constraints_matrix(length_oferta::Int, length_demanda::Int)
-    A = ones(Rational, 1, length_demanda)
-    A = hcat(A, zeros(Rational, 1, (length_oferta - 1)*length_demanda))
+    A = ones(Int, 1, length_demanda)
+    A = hcat(A, zeros(Int, 1, (length_oferta - 1)*length_demanda))
 
     for i in 2:length_oferta 
-        line = zeros(Rational, 1, length_demanda)
+        line = zeros(Int, 1, length_demanda)
         for j in 2:length_oferta
-            i == j ? line = hcat(line, ones(Rational, 1, length_demanda)) : line = hcat(line, zeros(Rational, 1, length_demanda))
+            i == j ? line = hcat(line, ones(Int, 1, length_demanda)) : line = hcat(line, zeros(Int, 1, length_demanda))
         end
         A = vcat(A, line)
     end
@@ -135,5 +137,5 @@ function create_constraints_matrix(length_oferta::Int, length_demanda::Int)
 
     A = A[1:end-1, :]
 
-    return A
+    return Rational{Int}.(A)
 end
