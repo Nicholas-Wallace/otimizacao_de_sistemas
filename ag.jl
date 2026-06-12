@@ -18,10 +18,6 @@ function ag(pop_size::Int)
 
     # mutação
     mutacao!(population)
-
-
-
-
 end
 
 function population_std(population::Vector{Tuple{BitVector, BitVector}})
@@ -32,7 +28,7 @@ function generate_population(pop_size::Int)
     # vamos gerar a população inicial respeitando a restrição x^2 + y^2 = 1
     population = Vector{Tuple{BitVector, BitVector}}(undef, pop_size)
 
-    for i in eachindex(population)
+    for i in 1:pop_size
         x = 2*rand() - 1 # geramos um numero aleatório entre -1 e 1
         y = sqrt(1 - x^2) # y já está amarrado pela restrição
         population[i] = (generate_bitvector(x), generate_bitvector(y)) # adicionamos a tupla de bitvectors à população
@@ -56,12 +52,11 @@ function get_float_back(bv::BitVector)
     for bit in bv                          # assume MSB-first
         u = (u << 1) | (bit ? UInt16(1) : UInt16(0))
     end
-    y = reinterpret(Float16, u)
+    y = Float32(reinterpret(Float16, u))
     return y
-
 end
 
-function get_aptidao(indv::Tuple{BitVector, BitVector}; max=true)
+function get_aptidao(indv::Vector{BitVector}; max=true)
     
     indv_x = get_float_back(indv[1])
     indv_y = get_float_back(indv[2])
