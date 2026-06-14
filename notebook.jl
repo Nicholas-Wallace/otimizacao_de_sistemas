@@ -1,5 +1,5 @@
 ### A Pluto.jl notebook ###
-# v1.0.1
+# v0.20.27
 
 using Markdown
 using InteractiveUtils
@@ -11,7 +11,10 @@ using Pkg
 using WGLMakie
 
 # ╔═╡ c1129640-fcc8-4059-9e2e-1e61af138465
+# ╠═╡ disabled = true
+#=╠═╡
 using Random
+  ╠═╡ =#
 
 # ╔═╡ a868a63a-e7fe-4a60-a0ac-759421d99ba2
 function f(x, y)
@@ -58,7 +61,6 @@ generate_bitvector.(v)
 # ╔═╡ 6a409fdf-57bc-4220-93f0-b9ec6509bcf4
 function generate_population(pop_size::Int)
     v = rand(Float64, (2, pop_size))
-    v = v .*6 .-3 # como a funcao rand gera numeros entre 0 e 1 assim conseguimos gerar entre -3 e 3
     population = generate_bitvector.(v)
     return population
 end
@@ -69,12 +71,16 @@ end
 # ╔═╡ fafcd1a7-e703-405e-b996-04a8abf96700
 function get_float_back(bv::BitVector)
     u::UInt16 = 0
-    for bit in bv                          # assume MSB-first
+    for bit in bv                          # gera o Int baseado no bitvector
         u = (u << 1) | (bit ? UInt16(1) : UInt16(0))
     end
-    y = Float32(reinterpret(Float16, u))
-    return y
 
+    min = -3
+    max = 3
+    n = length(bv)
+    x = min+(max-min)*u/(2^n - 1) 
+
+    return x
 end
 
 # ╔═╡ 08b228bd-d3f6-411c-bb2b-a9910dd3d2fa

@@ -25,35 +25,112 @@ function population_std(population::Vector{Tuple{BitVector, BitVector}})
 end
 
 function generate_population(pop_size::Int)
-    # vamos gerar a população inicial respeitando a restrição x^2 + y^2 = 1
-    population = Vector{Tuple{BitVector, BitVector}}(undef, pop_size)
-
-    for i in 1:pop_size
-        x = 2*rand() - 1 # geramos um numero aleatório entre -1 e 1
-        y = sqrt(1 - x^2) # y já está amarrado pela restrição
-        population[i] = (generate_bitvector(x), generate_bitvector(y)) # adicionamos a tupla de bitvectors à população
+    population = Matrix{BitVector}(undef, 2, pop_size) # a população é uma matrix de BitVectors onde cada coluna é um individo e cada linha uma cordenada
+    for i in eachindex(population)
+        population[i] = bitrand(22)     # geramos um bitvector aleatorio para cada individuo
     end
-
     return population
 end
 
-function generate_bitvector(x::Float64)
-    
-    x = Float16(x)
-    u = reinterpret(UInt16, x) # view as a unsigned Int
-    s = bitstring(u)
-    bv = BitVector([c =='1' for c in s])
-    return bv
+function crossover_indv(indv1::BitVector, indv2::BitVector)
+    if length(indv1) != length(indv2)
+        error("Tamanho dos individuos nao bate")
+    end
 
+    n = length(indv1)
+    pivot = rand(1:n)
+    
+    filhos = Matrix{BitVector}(undef, 1, 2)
+
+    if pivot == 1
+    	filhos[1] = BitVector(vcat(indv1[1], indv2[2:end]))
+    	filhos[2] = BitVector(vcat(indv2[1], indv1[2:end]))
+   
+    elseif pivot == n
+    	filhos[1] = BitVector(vcat(indv1[1:end-1], indv2[end]))
+    	filhos[2] = BitVector(vcat(indv2[1:end-1], indv1[end]))
+    
+    else
+        filhos[1] = BitVector(vcat(indv1[1:pivot], indv2[pivot+1:end]))
+        filhos[2] = BitVector(vcat(indv2[1:pivot], indv1[pivot+1:end]))
+          
+    end
+    
+    println("pai 1: ", indv1)
+    println("pai 2: ", indv2)
+    println("---------------", pivot,"---------------")
+    println("filho 1: ", filhos[1])
+    println("filho 2: ", filhos[2])
+    
+    return filhos
+
+end
+
+function crossover_indv(indv1::Matrix{BitVector}, indv2::Matrix{BitVector})
+    if length(indv1) != length(indv2)
+        error("Tamanho dos individuos nao bate")
+    end
+
+    n = length(indv1)
+    pivot = rand(1:n)
+    
+    filhos = Matrix{BitVector}(undef, 1, 2)
+
+    if pivot == 1
+    	filhos[1] = BitVector(vcat(indv1[1], indv2[2:end]))
+    	filhos[2] = BitVector(vcat(indv2[1], indv1[2:end]))
+   
+    elseif pivot == n
+    	filhos[1] = BitVector(vcat(indv1[1:end-1], indv2[end]))
+    	filhos[2] = BitVector(vcat(indv2[1:end-1], indv1[end]))
+    
+    else
+        filhos[1] = BitVector(vcat(indv1[1:pivot], indv2[pivot+1:end]))
+        filhos[2] = BitVector(vcat(indv2[1:pivot], indv1[pivot+1:end]))
+          
+    end
+    
+    println("pai 1: ", indv1)
+    println("pai 2: ", indv2)
+    println("---------------", pivot,"---------------")
+    println("filho 1: ", filhos[1])
+    println("filho 2: ", filhos[2])
+    
+    return filhos
+
+end
+
+
+function crossover!(population::Matrix{BitVector}; prob = 0.6)
+    # cria um conjunto com todos os indices
+    idx = Set(1:size(population, 2))
+
+    for i in 1:size(population, 2)
+        if rand(Float32) <= 0.6
+        	idx1 = pop!(idx, rand(idx)) # sorteia um dos indices e o remove do conjunto
+		idx2 = pop!(idx, rand(idx))              		
+		i++
+		
+        	filhos = vcat(crossover_indv(population[1,idx1], population[1,idx2]), crossover_indv(population[2,idx1], population[2,idx2]))
+        	#resize!(population, hcat(population, filhos))
+        	#copyto!(population, hcat(population, filhos))
+        	
+        end
+    end
 end
 
 function get_float_back(bv::BitVector)
     u::UInt16 = 0
-    for bit in bv                          # assume MSB-first
+    for bit in bv                          # gera o Int baseado no bitvector
         u = (u << 1) | (bit ? UInt16(1) : UInt16(0))
     end
-    y = Float32(reinterpret(Float16, u))
-    return y
+
+    min = -3
+    max = 3
+    n = length(bv)
+    x = min+(max-min)*u/(2^n - 1) 
+
+    return x
 end
 
 function get_aptidao(indv::Vector{BitVector}; max=true)
