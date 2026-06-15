@@ -1,27 +1,44 @@
 using Random
 using Statistics 
 
-function ag(pop_size::Int)
+function ag(pop_size::Int, geracoes::Int)
     
     # gerar população incial
     population = generate_population(pop_size)
+    
+    aptidoes = [get_aptidao(population[:, i]) for i in 1:size(population,2)]
+    println("media inicial: ", mean(aptidoes))
 
-    aptidoes = get_aptidao.(population) # calcular a aptidão de cada indivíduo da população e guarda em um vetor
-    population_std = std(aptidoes)
+    for i in 1:(geracoes-1)
+	    # seleção 
+	    population = torneio(population, aptidoes)
 
+	    # crossover
+	    population = crossover(population)
 
-    # seleção 
-    torneio!(population, aptidoes)
+	    # mutação
+	    
+ 	    mutacao.(population)
+    		    
+	    aptidoes = [get_aptidao(population[:, i]) for i in 1:size(population,2)]
+            println("media iteracao $i: ", mean(aptidoes))
+    
+    end
 
-    # crossover
-    crossover!(population)
-
-    # mutação
-    mutacao!(population)
 end
 
 function population_std(population::Vector{Tuple{BitVector, BitVector}})
-    population_mean = get_aptidao.(population)
+	z = [f(get_float_back(indv[1]), get_float_back(indv[2])) for indv in eachcol(population)]
+	return std(z)
+end
+
+function mean_population(population::Matrix{BitVector})
+	z = [f(get_float_back(indv[1]), get_float_back(indv[2])) for indv in eachcol(population)]
+	return mean(z)
+end
+
+function f(x, y)
+	return (x - 1)^2 + y^2 - 2
 end
 
 function generate_population(pop_size::Int)
@@ -101,22 +118,38 @@ function crossover_indv(indv1::Matrix{BitVector}, indv2::Matrix{BitVector})
 end
 
 
-function crossover!(population::Matrix{BitVector}; prob = 0.6)
+function crossover(population::Matrix{BitVector}; prob = 0.6)
     # cria um conjunto com todos os indices
     idx = Set(1:size(population, 2))
-
+    
+    new_population = population
     for i in 1:size(population, 2)
-        if rand(Float32) <= 0.6
+        @show i
+        if @show rand(Float32) <= 0.6 && length(idx) >= 2
         	idx1 = pop!(idx, rand(idx)) # sorteia um dos indices e o remove do conjunto
 		idx2 = pop!(idx, rand(idx))              		
-		i++
 		
-        	filhos = vcat(crossover_indv(population[1,idx1], population[1,idx2]), crossover_indv(population[2,idx1], population[2,idx2]))
-        	#resize!(population, hcat(population, filhos))
-        	#copyto!(population, hcat(population, filhos))
-        	
+				
+     	   	filho = vcat(crossover_indv(population[1,idx1], population[1,idx2]), crossover_indv(population[2,idx1], population[2,idx2]))
+        	new_population = hcat(new_population, filho)
         end
     end
+    return new_population
+end
+
+function mutacao(dna::BitVector)
+
+	for i in eachindex(dna)
+		if rand(Float32) <= 0.01
+			@show dna
+			dna[i] = !dna[i]
+			println("mutacao idx: ", i)
+			@show dna
+		end	
+	end 
+	
+	return dna
+
 end
 
 function get_float_back(bv::BitVector)
@@ -138,10 +171,15 @@ function get_aptidao(indv::Vector{BitVector}; max=true)
     indv_x = get_float_back(indv[1])
     indv_y = get_float_back(indv[2])
 
+    # assuminfo qualquer penalidade para restrição r(x, y) = z como p = r(x, y) - z
+    penalidade = indv_x^2 + indv_y^2 - 1 
+    # adicionando um peso maior para a penalidade
+    peso = 4
+    
     if max
-        return (indv_x - 1)^2 + indv_y^2 -2
+        return f(indv_x, indv_y) - peso*penalidade
     else
-        return -(indv_x - 1)^2 + indv_y^2 -2
+        return -f(indv_x, indv_y) - peso*penalidade
     end
 end
 
@@ -158,27 +196,36 @@ function roleta!(population::Vector{Tuple{BitVector, BitVector}}, aptidoes::Vect
 
 end
 
-function torneio!(population::Vector{Tuple{BitVector, BitVector}}, aptidoes::Vector{Float16})
-    aptos = Vector{Tuple{BitVector, BitVector}}(undef, div(length(population), 2))
-              
-    # cria um conjunto com todos os indices
-    idx = Set(1:length(population))
+function print_indv(indv::Vector{BitVector})
+	print("x: ", get_float_back(indv[1]))
+	print(" y: ", get_float_back(indv[2]))
+	print("\n")
+	println("aptidão: ", get_aptidao(indv))
+end
 
-    for i in eachindex(aptos)
+function torneio(population::Matrix{BitVector}, aptidoes::Vector{Float64})
+    ncols = size(population, 2)
+    nrows = size(population, 1)
+    m = div(ncols, 2)
+    winners = Array{BitVector,2}(undef, nrows, m)
+
+    idx = Set(1:ncols)
+
+    for i in 1:m
+        idx1 = pop!(idx, rand(idx))
+        idx2 = pop!(idx, rand(idx))
+
+        indv1 = population[:, idx1]
+        indv2 = population[:, idx2]
         
-        indv1 = pop!(idx, rand(idx)) # sorteia um dos indices e o remove do conjunto
-        indv2 = pop!(idx, rand(idx))
-    
-        if aptidoes[indv1] > aptidoes[indv2]
-            aptos[i] = population[indv1]
-
+        if aptidoes[idx1] > aptidoes[idx2]
+            print_indv(indv1)
+            winners[:, i] = indv1
         else
-            aptos[i] = population[indv2]
+            print_indv(indv2)
+            winners[:, i] = indv2
         end
-
     end
 
-    resize!(population, length(aptos)) # nova população agora são os aptos
-    copyto!(population, aptos)
-
+    return winners
 end
