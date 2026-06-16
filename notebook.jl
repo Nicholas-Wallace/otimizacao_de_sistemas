@@ -1,20 +1,35 @@
 ### A Pluto.jl notebook ###
-# v0.20.27
+# v1.0.1
 
 using Markdown
 using InteractiveUtils
-
-# ╔═╡ 37fcadb3-c420-467d-ae53-b65d46ba25dc
-using Pkg
 
 # ╔═╡ 0e9406c8-65c2-11f1-becf-a1d69c52f94f
 using WGLMakie
 
 # ╔═╡ c1129640-fcc8-4059-9e2e-1e61af138465
-# ╠═╡ disabled = true
-#=╠═╡
 using Random
-  ╠═╡ =#
+
+# ╔═╡ 9ebcf1e0-9768-4ea8-9879-8a00b2a39c58
+using Statistics
+
+# ╔═╡ 1af3418c-b98e-4f52-bfda-2cdc9f32acf1
+md"""
+Nosso problema consiste em uma função do tipo
+
+$$f(x, y) = (x-1)^2 + y^2 - 2$$
+
+sujeita à restrição:
+
+$$x^2 + y^2 = 1$$
+
+Iremos analisar dois métodos para buscar o ótimo dessa função.
+"""
+
+# ╔═╡ b8083727-3a03-4fcf-842b-c42c1f28df9f
+md"""
+Primeiramente vamos plotar o grafico da nossa função f(x, y), jutamente com a restrição
+"""
 
 # ╔═╡ a868a63a-e7fe-4a60-a0ac-759421d99ba2
 function f(x, y)
@@ -27,7 +42,7 @@ begin
 	ys = LinRange(-π, π, 60)
 	zs = [f(x, y) for x in xs, y in ys]
 	fig = Figure(size = (800, 600))
-	ax  = Axis3(fig[1, 1], title = "sin(x)cos(y)", xlabel="x", ylabel="y", zlabel="z")
+	ax  = Axis3(fig[1, 1], title = "f(x, y)", xlabel="x", ylabel="y", zlabel="z")
 	plt = surface!(ax, xs, ys, zs)
 	Colorbar(fig[1, 2], plt)
 
@@ -46,33 +61,42 @@ end
 # ╔═╡ 2d02826d-de55-44e4-b672-2fd9b47bc9a8
 fig
 
-# ╔═╡ 938d4f81-e4ff-4820-bfd3-a49d2e9ecf8c
-# a primeira abordagem escolhida para gerar a população inicial foi pegar pontos aleatórios no dominio da função sem se preocupar com a restrição   
+# ╔═╡ 1b99fa70-adba-40cf-9e68-cc56e3684ddb
+md"""
+Dessa forma, as nossas possiveis solução estão na interseção dessas duas superfícies
+"""
 
-# ╔═╡ 305438bf-2a0a-460d-8b92-d86512fa3148
-v = rand(Float64, (2, 5))
+# ╔═╡ b9f986fc-5dcd-4470-8a2c-09c59a2e6e4f
+md"""
+Para atacar o problema vamos utilizar uma formulação de Algoritmo Genético.
 
-# ╔═╡ 2b2de955-5999-4f1e-af19-8b5990039bf6
-v .* 20 .- 10
+Começamos com uma população inicial de possives soluções, que no nosso caso os individuos foram gerados aleatoriamente
+"""
 
-# ╔═╡ 3b5ebc08-7e11-4787-be8f-eb6d35ea62bd
-generate_bitvector.(v)
-
-# ╔═╡ 6a409fdf-57bc-4220-93f0-b9ec6509bcf4
+# ╔═╡ d830fbcb-5dcb-48d7-a223-05c8a7f7428d
 function generate_population(pop_size::Int)
-    v = rand(Float64, (2, pop_size))
-    population = generate_bitvector.(v)
+    population = Matrix{BitVector}(undef, 2, pop_size) # a população é uma matrix de BitVectors onde cada coluna é um individo e cada linha uma cordenada
+    for i in eachindex(population)
+        population[i] = bitrand(32)     # geramos um bitvector aleatorio para cada individuo
+    end
     return population
 end
 
-# ╔═╡ 461bfe7c-b6a9-4986-9fb1-ab1c38c02196
-# esolhemos representar o individuo como um vetor de bits então para podermos plotar e calcular a aptidão precisamos de uma função que retorne de volta para Float
+# ╔═╡ 72f824b3-0bff-4be2-9e53-4e00bdc403d0
+md"""
+Escolhemos representar cada indivíduo como um vetor de (22)bits. Nós geramos cada individuo de forma que nossa população é uma matriz de vetores de bits, onde a linha 1 é a coordenada e a linha 2 é a coordenada y. Consequentemente cada individuo é uma coluna dessa matriz.
+"""
 
-# ╔═╡ fafcd1a7-e703-405e-b996-04a8abf96700
+# ╔═╡ cdd85e02-9786-4cfc-bffd-26b1c8a73c8a
+md"""
+Agora precisamos de uma função para trazer de volta da representação em bits para Float. Nesse momento tambpem escolhemos os limites de busca da nossa função
+"""
+
+# ╔═╡ 306fe017-da30-4871-8606-c62a4e1a330e
 function get_float_back(bv::BitVector)
-    u::UInt16 = 0
+    u::UInt32 = 0
     for bit in bv                          # gera o Int baseado no bitvector
-        u = (u << 1) | (bit ? UInt16(1) : UInt16(0))
+        u = (u << 1) | (bit ? UInt32(1) : UInt32(0))
     end
 
     min = -3
@@ -83,59 +107,188 @@ function get_float_back(bv::BitVector)
     return x
 end
 
-# ╔═╡ 08b228bd-d3f6-411c-bb2b-a9910dd3d2fa
-population = generate_population(5)
+# ╔═╡ 14a6ee83-bd4b-466a-b193-ca7773bbabc2
+md"""
+Agora que temos nossos individuos precisamos de uma forma de calcular a aptidão. Essa métrica será importante para a cada geração escolher os indivíduos mais aptos (as melhores soluções)
+"""
 
-# ╔═╡ 0cb79339-59d2-4a1e-920d-0c1dfe2e3c25
-typeof(population[:, 1])
+# ╔═╡ 5ec82d64-75ec-473f-acb7-f66b4cf175c6
+md"""
+Como geramos aleatoriamente no espaço de busca as soluções iniciais, precisamos penalizar as soluções que nao satisfazem as restrições. Nesse caso eu adiciionei literalmente uma penalidade proporcional a quão longe de satisfazer as restrições essas soluções estão.
+"""
 
-# ╔═╡ d4f1df37-8a9e-4ac1-81de-502cdb9a6c38
-# como geramos numeros completamente aleatorios na população inicial, precisamos agora penalizar os individuos que estão fora da restrição. Quanto mais longe maior a penalidade  
-
-# ╔═╡ 9cbad01d-cf51-4764-b99b-5d42798f5c51
-function get_aptidao(indv::Vector{BitVector}; max=true)
+# ╔═╡ 8b30ce05-f096-4722-841e-679b3024b7b9
+function get_aptidao(indv::Vector{BitVector}; max=true, pond = 5)
     
     indv_x = get_float_back(indv[1])
     indv_y = get_float_back(indv[2])
 
-    # assuminfo qualquer penalidade para restrição r(x, y) = z como p = r(x, y) - z
-    penalidade = indv_x^2 + indv_y^2 - 1 
+    # assumindo qualquer penalidade para restrição r(x, y) = z como p = r(x, y) - z
+    penalidade = (indv_x^2 + indv_y^2 - 1)^2 # ao quadrado para aumentar o peso 
     # adicionando um peso maior para a penalidade
-    peso = 4
     
     if max
-        return f(indv_x, indv_y) - peso*penalidade
+        return f(indv_x, indv_y) - pond*penalidade
     else
-        return -f(indv_x, indv_y) - peso*penalidade
+        return -f(indv_x, indv_y) - pond*penalidade
     end
 end
 
-# ╔═╡ 9543e04e-e226-4850-bb6c-b3a39d503c7f
-scalar_pop = get_float_back.(population)
+# ╔═╡ 514df095-d19d-41de-8820-2acd7f5c4cfd
+function get_aptidao(indv; max=true)
 
-# ╔═╡ 232bef2c-9c35-4ead-96fe-2ddbd1a91310
-for indv in eachcol(population)
-	v = Vector(indv)
-	#println(typeof(indv))
-	#println(typeof(v))
-	println(get_float_back.(v), "aptidao: ", get_aptidao(v))
+    indv_x = indv[1]
+    indv_y = indv[2]
+    
+    # assumindo qualquer penalidade para restrição r(x, y) = z como p = r(x, y) - z
+    penalidade = (indv_x^2 + indv_y^2 - 1)^2
+    # adicionando um peso maior para a penalidade
+    pond = 10
+    
+    if max
+        return f(indv_x, indv_y) - penalidade*pond
+    else
+        return -f(indv_x, indv_y) - penalidade*pond
+    end
 end
 
-# ╔═╡ 0af9e169-e9be-46fe-86b9-ff818ce65bee
-begin
-	fig_indv = Figure(size = (800, 600))
-	ax_indv  = Axis3(fig_indv[1, 1], title = "sin(x)cos(y)", xlabel="x", ylabel="y", zlabel="z")
-	plt_indv = surface!(ax_indv, xs, ys, zs)
-	Colorbar(fig_indv[1, 2], plt_indv)
-	scatter!(ax_indv, scalar_pop[1, :], scalar_pop[2, :], f.(scalar_pop[1, :], scalar_pop[2, :]), color=:red)
-	fig_indv
+# ╔═╡ 73b820a9-e6dc-4d86-93ee-d85bcf5d5a91
+get_aptidao([-1, 0])
+
+# ╔═╡ 936a79d5-39fc-4c5a-9fe0-3e3f0e1d821e
+get_aptidao([-1, 1])
+
+# ╔═╡ 08b228bd-d3f6-411c-bb2b-a9910dd3d2fa
+md"""
+Agora que temos uma forma de calcular as aptidões podemos adicionar a etapa do torneio, que sorteia aleatoriamente 2 individuos na população e apenas o com maior aptidão é mantido para a proxima geração
+"""
+
+# ╔═╡ afc8af7d-69a2-48ee-b028-615ddec83e70
+md"""
+Temos também a etapa de crossover que com bits é bem intuitiva de se implementar, Há uma probabilidade de 60% de ocorrer um crossover e é feita aleatoriamente entre 2 individuos com um pivo aleatorio entre os 32 bits.
+"""
+
+# ╔═╡ 44c10b19-0f13-4eb7-b81f-143df703716d
+function crossover_indv(indv1::BitVector, indv2::BitVector)
+    if length(indv1) != length(indv2)
+        error("Tamanho dos individuos nao bate")
+    end
+
+    n = length(indv1)
+    pivot = rand(1:n)
+    
+    filhos = Matrix{BitVector}(undef, 1, 2)
+
+    if pivot == 1
+    	filhos[1] = BitVector(vcat(indv1[1], indv2[2:end]))
+    	filhos[2] = BitVector(vcat(indv2[1], indv1[2:end]))
+   
+    elseif pivot == n
+    	filhos[1] = BitVector(vcat(indv1[1:end-1], indv2[end]))
+    	filhos[2] = BitVector(vcat(indv2[1:end-1], indv1[end]))
+    
+    else
+        filhos[1] = BitVector(vcat(indv1[1:pivot], indv2[pivot+1:end]))
+        filhos[2] = BitVector(vcat(indv2[1:pivot], indv1[pivot+1:end]))
+          
+    end
+    
+    #println("pai 1: ", indv1)
+    #println("pai 2: ", indv2)
+    #println("---------------", pivot,"---------------")
+    #println("filho 1: ", filhos[1])
+    #println("filho 2: ", filhos[2])
+    
+    return filhos
+
 end
 
-# ╔═╡ 7cf1714c-9315-4962-ada3-499d80c23eb4
-# escolhi o torneio
+# ╔═╡ 227d4ccb-cdfb-4b0b-a1d6-321b9268d966
+md"""
+A regra que foi adotada para o crossover na população é:
+	os dois mais aptos sempre continuam na proxima geracao.
+Para isso o vetor precisa estar ordenado
+"""
 
-# ╔═╡ 28addff7-28dc-4ffd-998d-34dd0efa80dc
-aptos = falses(2, 5) 
+# ╔═╡ 021590ec-6e87-4bb1-9a30-5dbb96cfa662
+function sort_population(population::Matrix{BitVector}, aptidoes::AbstractVector{<:Real}; descending=true)
+    if size(population, 2) != length(aptidoes)
+        error("O número de indivíduos e de aptidões deve ser igual")
+    end
+
+    order = sortperm(aptidoes; rev=descending)
+    return population[:, order]
+end
+
+# ╔═╡ 6f6b09c6-f17d-4b80-8c4b-09cede87e3d6
+function crossover(population::Matrix{BitVector}, parents_a, parents_b; prob = 0.6)
+    # cria um conjunto com todos os indices
+    if length(parents_a) != length(parents_b)
+        error("pais deve ter mesmo tamanho")
+    end
+
+    pai_a = pop!(parents_a, rand(parents_a))
+    pai_b = pop!(parents_b, rand(parents_b))
+    if rand(Float32) <= prob             		
+        filho = vcat(crossover_indv(population[1,pai_a], population[1,pai_b]), crossover_indv(population[2,pai_a], population[2,pai_b]))
+        new_population = filho
+    else
+        filho = hcat(population[:, pai_a], population[:, pai_b])
+        new_population = (filho)
+    end
+
+    # repete o processo até acabarem os pais
+    for pai_a in parents_a
+        pai_b = pop!(parents_b, rand(parents_b))
+        if rand(Float32) <= prob             		
+            filho = vcat(crossover_indv(population[1,pai_a], population[1,pai_b]), crossover_indv(population[2,pai_a], population[2,pai_b]))
+        	new_population = hcat(new_population, filho)
+        else
+            filho = hcat(population[:, pai_a], population[:, pai_b])
+            new_population = hcat(new_population, filho)       
+        end
+        
+    end
+   return new_population
+end
+
+# ╔═╡ d94f7a8a-cf6a-498e-8742-1ebbc79a2954
+md"""
+A mutação ocorre em toda a geração com uma taxa de 1% por bit. Passamos por todos os bits da população.
+"""
+
+# ╔═╡ 3e9dd45f-4d2c-489b-8658-a53275269d8a
+function mutacao(dna::BitVector)
+
+	for i in eachindex(dna)
+		if rand(Float32) <= 0.01
+			#@show dna
+			dna[i] = !dna[i]
+			#println("mutacao idx: ", i)
+			#@show dna
+		end	
+	end 
+	
+	return dna
+
+end
+
+# ╔═╡ 13b9f11e-4a27-4eb4-b9a6-308b2f5dd76d
+function std_population(population::Matrix{BitVector})
+	z = [f(get_float_back(indv[1]), get_float_back(indv[2])) for indv in eachcol(population)]
+	return std(z)
+end
+
+# ╔═╡ 6e621b28-7403-49c6-a219-4949b8062f58
+function mean_population(population::Matrix{BitVector})
+	z = [f(get_float_back(indv[1]), get_float_back(indv[2])) for indv in eachcol(population)]
+	return mean(z)
+end
+
+# ╔═╡ 3c730587-9aec-4a5e-8576-5ec4f6ff5431
+md"""
+Agora que temos tudo que é necessário para uma iteração do algoritimo genético podemos criar uma função para o algoritmo 
+"""
 
 # ╔═╡ 1b1b300e-c2f7-4f53-a92a-32db4c7968e1
 function print_indv(indv::Vector{BitVector})
@@ -145,13 +298,13 @@ function print_indv(indv::Vector{BitVector})
 	println("aptidão: ", get_aptidao(indv))
 end
 
-# ╔═╡ 0f5fd44b-7bb0-4c15-9698-af0ea1880599
-function torneio(population::Matrix{BitVector}, aptidoes::Vector{Float32})
+# ╔═╡ 3d1cd6d1-fa57-43d4-9d93-03199efc6844
+function torneio(population::Matrix{BitVector}, aptidoes::Vector{Float64})
     ncols = size(population, 2)
     nrows = size(population, 1)
     m = div(ncols, 2)
-    winners = Array{BitVector,2}(undef, nrows, m)
-
+    winners = Set()
+    
     idx = Set(1:ncols)
 
     for i in 1:m
@@ -163,35 +316,102 @@ function torneio(population::Matrix{BitVector}, aptidoes::Vector{Float32})
         
         if aptidoes[idx1] > aptidoes[idx2]
             print_indv(indv1)
-            winners[:, i] = indv1
+            push!(winners, idx1)
         else
             print_indv(indv2)
-            winners[:, i] = indv2
+            push!(winners, idx2)
         end
     end
-
     return winners
 end
 
-# ╔═╡ fa80a1ba-ec4d-40ea-b46a-9d1d5c78df57
-print_indv(population[:, 1])
+# ╔═╡ b740d1c4-334d-4b80-a132-5e573726881c
+function ag(pop_size::Int, geracoes::Int)
 
-# ╔═╡ 4298a08f-17a1-4995-ac53-516dc8e2f9ec
-aptidoes = [get_aptidao(Vector(indv)) for indv in eachcol(population)]
+	pond = LinRange(5, 20, geracoes) # para a ponderacao ir aumentando
+	
+    # gerar população incial
+    population = generate_population(pop_size)
 
-# ╔═╡ 7d613648-3335-4cef-91e1-7db76a9c6b9c
-winners = torneio(population, aptidoes)
+	medias = Vector{Float64}(undef, geracoes)
+	stds = Vector{Float64}(undef, geracoes)
+	populations = Vector{Matrix}(undef, geracoes)
+	
+	for i in 1:geracoes
+		aptidoes = [get_aptidao(population[:, j], pond=pond[i]) for j in axes(population, 2)] 
+		parents_a = torneio(population, aptidoes)
+		parents_b = torneio(population, aptidoes)
+		new_pop = crossover(population, parents_a, parents_b, prob=0.8)
+		mutacao.(new_pop)
+		#
+		population = hcat(population, new_pop)
+		@show aptidoes = [get_aptidao(population[:, j], pond=pond[i]) for j in axes(population, 2)] 
+		population = sort_population(population, aptidoes)
+		population = population[:, 1:pop_size]
 
-# ╔═╡ d2562656-d182-4d5e-bf83-8c8f0ff668c7
-for indv in eachcol(winners)
-	print_indv(Vector(indv))
+		medias[i] = mean_population(population)
+		stds[i] = std_population(population)
+		populations[i] = population
+
+		if stds[i] < 0.0001
+			break # condição de parada
+		end
+		
+	end
+
+	return medias, stds, populations
+end
+
+
+# ╔═╡ 7234f6ba-96a1-43c4-9968-51d699029c8a
+medias, stds, populations = ag(16, 20)
+
+# ╔═╡ bd0a26cb-4fa2-4101-bcea-d1423929c439
+stds
+
+# ╔═╡ 5b7613c6-7fb7-4415-a20f-169cf03866b5
+lines(medias)
+
+# ╔═╡ 6b1d7eb2-2aea-47dd-a49e-ea5de7a104ad
+lines(stds)
+
+# ╔═╡ bd20f04a-5414-49f2-b643-088279eeb3d9
+get_aptidao(populations[1][:, 1])
+
+# ╔═╡ 77afa0bc-eeed-4e7c-9d8a-ee4a3cee5fcb
+get_float_back.(populations[1][1, :])
+
+# ╔═╡ 357454a9-46a5-480a-931a-49270443b6c3
+begin
+    n_pops = length(populations)
+    n_cols = 3
+    n_rows = ceil(Int, n_pops / n_cols)
+
+    fig_res = Figure(size=(800 , 1200))
+
+    for idx in 1:20
+        row = ceil(Int, idx / n_cols)
+        col = mod1(idx, n_cols)
+
+        ax = Axis(fig_res[row, col],
+            title  = "Geração $idx",
+            limits = ((-3, 3), (-3, 3)))
+
+        lines!(ax, cos.(θ), sin.(θ), color = :black)
+
+        x = get_float_back.(populations[idx][1, :])
+        y = get_float_back.(populations[idx][2, :])
+        scatter!(ax, x, y, color = :red)
+    end
+
+    fig_res
 end
 
 # ╔═╡ 00000000-0000-0000-0000-000000000001
 PLUTO_PROJECT_TOML_CONTENTS = """
 [deps]
-Pkg = "44cfe95a-1eb2-52ea-b672-e2afdf69b78f"
 Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
+Statistics = "10745b16-79ce-11e8-11f9-7d13ad32a3b2"
 WGLMakie = "276b4fcb-3e11-5398-bf8b-a0c2d153d008"
 
 [compat]
@@ -204,7 +424,7 @@ PLUTO_MANIFEST_TOML_CONTENTS = """
 
 julia_version = "1.12.4"
 manifest_format = "2.0"
-project_hash = "3881f2689a92051ff16a0292361adf7b182ff833"
+project_hash = "499fc436499e12ac5dd06763c6ce4bd125ee7b13"
 
 [[deps.AbstractFFTs]]
 deps = ["LinearAlgebra"]
@@ -1851,32 +2071,45 @@ version = "4.1.0+0"
 
 # ╔═╡ Cell order:
 # ╠═0e9406c8-65c2-11f1-becf-a1d69c52f94f
-# ╠═37fcadb3-c420-467d-ae53-b65d46ba25dc
 # ╠═c1129640-fcc8-4059-9e2e-1e61af138465
+# ╠═9ebcf1e0-9768-4ea8-9879-8a00b2a39c58
+# ╟─1af3418c-b98e-4f52-bfda-2cdc9f32acf1
+# ╟─b8083727-3a03-4fcf-842b-c42c1f28df9f
 # ╠═a868a63a-e7fe-4a60-a0ac-759421d99ba2
 # ╠═fe9c4466-3e3d-4bc9-b42a-f2f6cf038588
 # ╠═2d02826d-de55-44e4-b672-2fd9b47bc9a8
-# ╠═938d4f81-e4ff-4820-bfd3-a49d2e9ecf8c
-# ╠═305438bf-2a0a-460d-8b92-d86512fa3148
-# ╠═2b2de955-5999-4f1e-af19-8b5990039bf6
-# ╠═3b5ebc08-7e11-4787-be8f-eb6d35ea62bd
-# ╠═6a409fdf-57bc-4220-93f0-b9ec6509bcf4
-# ╠═461bfe7c-b6a9-4986-9fb1-ab1c38c02196
-# ╠═fafcd1a7-e703-405e-b996-04a8abf96700
-# ╠═08b228bd-d3f6-411c-bb2b-a9910dd3d2fa
-# ╠═0cb79339-59d2-4a1e-920d-0c1dfe2e3c25
-# ╠═d4f1df37-8a9e-4ac1-81de-502cdb9a6c38
-# ╠═9cbad01d-cf51-4764-b99b-5d42798f5c51
-# ╠═9543e04e-e226-4850-bb6c-b3a39d503c7f
-# ╠═232bef2c-9c35-4ead-96fe-2ddbd1a91310
-# ╠═0af9e169-e9be-46fe-86b9-ff818ce65bee
-# ╠═7cf1714c-9315-4962-ada3-499d80c23eb4
-# ╠═0f5fd44b-7bb0-4c15-9698-af0ea1880599
-# ╠═28addff7-28dc-4ffd-998d-34dd0efa80dc
+# ╟─1b99fa70-adba-40cf-9e68-cc56e3684ddb
+# ╟─b9f986fc-5dcd-4470-8a2c-09c59a2e6e4f
+# ╠═d830fbcb-5dcb-48d7-a223-05c8a7f7428d
+# ╟─72f824b3-0bff-4be2-9e53-4e00bdc403d0
+# ╟─cdd85e02-9786-4cfc-bffd-26b1c8a73c8a
+# ╠═306fe017-da30-4871-8606-c62a4e1a330e
+# ╟─14a6ee83-bd4b-466a-b193-ca7773bbabc2
+# ╟─5ec82d64-75ec-473f-acb7-f66b4cf175c6
+# ╠═8b30ce05-f096-4722-841e-679b3024b7b9
+# ╠═514df095-d19d-41de-8820-2acd7f5c4cfd
+# ╠═73b820a9-e6dc-4d86-93ee-d85bcf5d5a91
+# ╠═936a79d5-39fc-4c5a-9fe0-3e3f0e1d821e
+# ╟─08b228bd-d3f6-411c-bb2b-a9910dd3d2fa
+# ╠═3d1cd6d1-fa57-43d4-9d93-03199efc6844
+# ╟─afc8af7d-69a2-48ee-b028-615ddec83e70
+# ╠═44c10b19-0f13-4eb7-b81f-143df703716d
+# ╟─227d4ccb-cdfb-4b0b-a1d6-321b9268d966
+# ╠═021590ec-6e87-4bb1-9a30-5dbb96cfa662
+# ╠═6f6b09c6-f17d-4b80-8c4b-09cede87e3d6
+# ╟─d94f7a8a-cf6a-498e-8742-1ebbc79a2954
+# ╠═3e9dd45f-4d2c-489b-8658-a53275269d8a
+# ╠═13b9f11e-4a27-4eb4-b9a6-308b2f5dd76d
+# ╠═6e621b28-7403-49c6-a219-4949b8062f58
+# ╟─3c730587-9aec-4a5e-8576-5ec4f6ff5431
+# ╠═b740d1c4-334d-4b80-a132-5e573726881c
+# ╠═bd0a26cb-4fa2-4101-bcea-d1423929c439
+# ╠═7234f6ba-96a1-43c4-9968-51d699029c8a
+# ╠═5b7613c6-7fb7-4415-a20f-169cf03866b5
+# ╠═6b1d7eb2-2aea-47dd-a49e-ea5de7a104ad
+# ╠═bd20f04a-5414-49f2-b643-088279eeb3d9
+# ╠═77afa0bc-eeed-4e7c-9d8a-ee4a3cee5fcb
+# ╠═357454a9-46a5-480a-931a-49270443b6c3
 # ╠═1b1b300e-c2f7-4f53-a92a-32db4c7968e1
-# ╠═fa80a1ba-ec4d-40ea-b46a-9d1d5c78df57
-# ╠═4298a08f-17a1-4995-ac53-516dc8e2f9ec
-# ╠═7d613648-3335-4cef-91e1-7db76a9c6b9c
-# ╠═d2562656-d182-4d5e-bf83-8c8f0ff668c7
 # ╟─00000000-0000-0000-0000-000000000001
 # ╟─00000000-0000-0000-0000-000000000002

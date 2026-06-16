@@ -6,11 +6,9 @@ function ag(pop_size::Int, geracoes::Int)
     # gerar população incial
     population = generate_population(pop_size)
     
-    aptidoes = [get_aptidao(population[:, i]) for i in 1:size(population,2)]
-    println("media inicial: ", mean(aptidoes))
-
     for i in 1:(geracoes-1)
-	    # seleção 
+	    # seleção
+        aptidoes = [get_aptidao(population[:, i]) for i in 1:size(population,2)] 
 	    population = torneio(population, aptidoes)
 
 	    # crossover
@@ -183,6 +181,15 @@ function get_aptidao(indv::Vector{BitVector}; max=true)
     end
 end
 
+function sort_population(population::Matrix{BitVector}, aptidoes::AbstractVector{<:Real}; descending=true)
+    if size(population, 2) != length(aptidoes)
+        error("O número de indivíduos e de aptidões deve ser igual")
+    end
+
+    order = sortperm(aptidoes; rev=descending)
+    return population[:, order]
+end
+
 function roleta!(population::Vector{Tuple{BitVector, BitVector}}, aptidoes::Vector{Float16})
     
     aptos = Set()
@@ -208,6 +215,7 @@ function torneio(population::Matrix{BitVector}, aptidoes::Vector{Float64})
     nrows = size(population, 1)
     m = div(ncols, 2)
     winners = Array{BitVector,2}(undef, nrows, m)
+    losers = Vector{Int}(undef, m)
 
     idx = Set(1:ncols)
 
@@ -221,11 +229,24 @@ function torneio(population::Matrix{BitVector}, aptidoes::Vector{Float64})
         if aptidoes[idx1] > aptidoes[idx2]
             print_indv(indv1)
             winners[:, i] = indv1
+            losers[i] = idx2
         else
             print_indv(indv2)
             winners[:, i] = indv2
+            losers[i] = idx1
         end
     end
 
-    return winners
+    deleteat!(aptidoes, sort(losers))
+
+    return winners, aptidoes
+end
+
+begin
+	fig_indv = Figure(size = (800, 600))
+	ax_indv  = Axis3(fig_indv[1, 1], title = "sin(x)cos(y)", xlabel="x", ylabel="y", zlabel="z")
+	plt_indv = surface!(ax_indv, xs, ys, zs)
+	Colorbar(fig_indv[1, 2], plt_indv)
+	scatter!(ax_indv, get_float_back.(populations[1][1, :]), get_float_back.(populations[1][2, :]), f.( get_float_back.(populations[1][1, :]),  get_float_back.(populations[1][2, :])), color=:red)
+	fig_indv
 end
