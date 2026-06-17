@@ -13,6 +13,14 @@ using Random
 # ╔═╡ 9ebcf1e0-9768-4ea8-9879-8a00b2a39c58
 using Statistics
 
+# ╔═╡ bce9f970-b828-4f1e-bb0b-750291eb9984
+using Printf
+
+# ╔═╡ 72413dda-5121-4722-b0cf-85b99d77f762
+md"""
+# Otimização Não Linear Com Restrição
+"""
+
 # ╔═╡ 1af3418c-b98e-4f52-bfda-2cdc9f32acf1
 md"""
 Nosso problema consiste em uma função do tipo
@@ -66,20 +74,38 @@ md"""
 Dessa forma, as nossas possiveis solução estão na interseção dessas duas superfícies
 """
 
-# ╔═╡ b9f986fc-5dcd-4470-8a2c-09c59a2e6e4f
+# ╔═╡ 761678aa-72e7-462c-960e-e948e1009883
+md"""
+## Algoritimo Genético
+"""
+
+# ╔═╡ 8b31dca9-e4ec-4bc3-ab7c-4110585d8e45
 md"""
 Para atacar o problema vamos utilizar uma formulação de Algoritmo Genético.
 
+Primeiramente vamos definir algumas constantes
+"""
+
+# ╔═╡ 6ecab8ea-466d-4f8a-b924-acdd711f6a9c
+begin
+	const X_MAX      = 3.0 # Limitando espaço de busca
+	const X_MIN      = -3.0 # Limitando espaço de busca
+	const μ          = 10 # Importante para a restrição
+	const cross_prob = 0.60 # Probabilidade de crossover
+	const mut_prob   = 0.01 # Probabilidade de mutação
+	const INDVS       = 20
+	const GERACOES   = 25
+end
+
+# ╔═╡ b9f986fc-5dcd-4470-8a2c-09c59a2e6e4f
+md"""
 Começamos com uma população inicial de possives soluções, que no nosso caso os individuos foram gerados aleatoriamente
 """
 
-# ╔═╡ d830fbcb-5dcb-48d7-a223-05c8a7f7428d
-function generate_population(pop_size::Int)
-    population = Matrix{BitVector}(undef, 2, pop_size) # a população é uma matrix de BitVectors onde cada coluna é um individo e cada linha uma cordenada
-    for i in eachindex(population)
-        population[i] = bitrand(32)     # geramos um bitvector aleatorio para cada individuo
-    end
-    return population
+# ╔═╡ 60e072e3-f9f0-445f-a338-a90207700efb
+mutable struct Indv
+	cromos::Vector{BitVector}
+	x     ::Vector{Float64}
 end
 
 # ╔═╡ 72f824b3-0bff-4be2-9e53-4e00bdc403d0
@@ -89,7 +115,7 @@ Escolhemos representar cada indivíduo como um vetor de (22)bits. Nós geramos c
 
 # ╔═╡ cdd85e02-9786-4cfc-bffd-26b1c8a73c8a
 md"""
-Agora precisamos de uma função para trazer de volta da representação em bits para Float. Nesse momento tambpem escolhemos os limites de busca da nossa função
+Agora precisamos de uma função para trazer de volta da representação em bits para Float. Nesse momento também escolhemos os limites de busca da nossa função
 """
 
 # ╔═╡ 306fe017-da30-4871-8606-c62a4e1a330e
@@ -99,12 +125,22 @@ function get_float_back(bv::BitVector)
         u = (u << 1) | (bit ? UInt32(1) : UInt32(0))
     end
 
-    min = -3
-    max = 3
     n = length(bv)
-    x = min+(max-min)*u/(2^n - 1) 
+    x = X_MIN+(X_MAX - X_MIN)*u/(2^n - 1) 
 
     return x
+end
+
+# ╔═╡ d830fbcb-5dcb-48d7-a223-05c8a7f7428d
+function generate_population(pop_size::Int)
+    population = Vector{Indv}(undef, pop_size) 
+    
+    for i in eachindex(population)
+        cromos = [bitrand(32), bitrand(32)]# cromossoms aleatorios
+        x = get_float_back.(cromos)
+        population[i] = Indv(cromos, x)
+    end
+    return population
 end
 
 # ╔═╡ 14a6ee83-bd4b-466a-b193-ca7773bbabc2
@@ -112,51 +148,30 @@ md"""
 Agora que temos nossos individuos precisamos de uma forma de calcular a aptidão. Essa métrica será importante para a cada geração escolher os indivíduos mais aptos (as melhores soluções)
 """
 
+# ╔═╡ 30441865-da0d-4e1b-adde-cf67896373fa
+function fitness(f::Function, x::Vector{Float64}; max=true)
+    penalidade = (x[1]^2 + x[2]^2 - 1)^2
+    if max
+        return f(x) - μ * penalidade
+    else
+        return -f(x) - μ * penalidade
+    end
+end
+
 # ╔═╡ 5ec82d64-75ec-473f-acb7-f66b4cf175c6
 md"""
-Como geramos aleatoriamente no espaço de busca as soluções iniciais, precisamos penalizar as soluções que nao satisfazem as restrições. Nesse caso eu adiciionei literalmente uma penalidade proporcional a quão longe de satisfazer as restrições essas soluções estão.
+Como geramos aleatoriamente no espaço de busca as soluções iniciais, precisamos
+penalizar as soluções que não satisfazem as restrições. Nesse caso, adicionamos
+uma penalidade proporcional a quão longe de satisfazer as restrições essas soluções estão.
+
+Para uma restrição do tipo:
+
+$$r(x, y) = z$$
+
+a penalidade é definida como:
+
+$$p(x, y) = \big(r(x, y) - z\big)^2$$
 """
-
-# ╔═╡ 8b30ce05-f096-4722-841e-679b3024b7b9
-function get_aptidao(indv::Vector{BitVector}; max=true, pond = 5)
-    
-    indv_x = get_float_back(indv[1])
-    indv_y = get_float_back(indv[2])
-
-    # assumindo qualquer penalidade para restrição r(x, y) = z como p = r(x, y) - z
-    penalidade = (indv_x^2 + indv_y^2 - 1)^2 # ao quadrado para aumentar o peso 
-    # adicionando um peso maior para a penalidade
-    
-    if max
-        return f(indv_x, indv_y) - pond*penalidade
-    else
-        return -f(indv_x, indv_y) - pond*penalidade
-    end
-end
-
-# ╔═╡ 514df095-d19d-41de-8820-2acd7f5c4cfd
-function get_aptidao(indv; max=true)
-
-    indv_x = indv[1]
-    indv_y = indv[2]
-    
-    # assumindo qualquer penalidade para restrição r(x, y) = z como p = r(x, y) - z
-    penalidade = (indv_x^2 + indv_y^2 - 1)^2
-    # adicionando um peso maior para a penalidade
-    pond = 10
-    
-    if max
-        return f(indv_x, indv_y) - penalidade*pond
-    else
-        return -f(indv_x, indv_y) - penalidade*pond
-    end
-end
-
-# ╔═╡ 73b820a9-e6dc-4d86-93ee-d85bcf5d5a91
-get_aptidao([-1, 0])
-
-# ╔═╡ 936a79d5-39fc-4c5a-9fe0-3e3f0e1d821e
-get_aptidao([-1, 1])
 
 # ╔═╡ 08b228bd-d3f6-411c-bb2b-a9910dd3d2fa
 md"""
@@ -169,37 +184,50 @@ Temos também a etapa de crossover que com bits é bem intuitiva de se implement
 """
 
 # ╔═╡ 44c10b19-0f13-4eb7-b81f-143df703716d
-function crossover_indv(indv1::BitVector, indv2::BitVector)
-    if length(indv1) != length(indv2)
+function crossover(indv1::Indv, indv2::Indv)
+    if length(indv1.cromos) != length(indv2.cromos)
         error("Tamanho dos individuos nao bate")
     end
 
-    n = length(indv1)
+    n = length(indv1.cromos)
     pivot = rand(1:n)
     
-    filhos = Matrix{BitVector}(undef, 1, 2)
-
     if pivot == 1
-    	filhos[1] = BitVector(vcat(indv1[1], indv2[2:end]))
-    	filhos[2] = BitVector(vcat(indv2[1], indv1[2:end]))
-   
+    	cromo_x1 = BitVector(vcat(indv1.cromos[1][1], indv2.cromos[1][2:end]))
+    	cromo_x2 = BitVector(vcat(indv2.cromos[1][1], indv1.cromos[1][2:end]))
+
+        cromo_y1 = BitVector(vcat(indv1.cromos[2][1], indv2.cromos[2][2:end]))
+        cromo_y2 = BitVector(vcat(indv2.cromos[2][1], indv1.cromos[2][2:end]))
+
+        filho1 = Indv([cromo_x1, cromo_y1], get_float_back.([cromo_x1, cromo_y1]))
+        filho2 = Indv([cromo_x2, cromo_y2], get_float_back.([cromo_x2, cromo_y2]))
+       
+        return [filho1, filho2]
     elseif pivot == n
-    	filhos[1] = BitVector(vcat(indv1[1:end-1], indv2[end]))
-    	filhos[2] = BitVector(vcat(indv2[1:end-1], indv1[end]))
-    
+
+        cromo_x1 = BitVector(vcat(indv1.cromos[1][1:end-1], indv2.cromos[1][end]))
+    	cromo_x2 = BitVector(vcat(indv2.cromos[1][1:end-1], indv1.cromos[1][end]))
+
+        cromo_y1 = BitVector(vcat(indv1.cromos[2][1:end-1], indv2.cromos[2][end]))
+        cromo_y2 = BitVector(vcat(indv2.cromos[2][1:end-1], indv1.cromos[2][end]))
+
+        filho1 = Indv([cromo_x1, cromo_y1], get_float_back.([cromo_x1, cromo_y1]))
+        filho2 = Indv([cromo_x2, cromo_y2], get_float_back.([cromo_x2, cromo_y2]))
+            
+        return [filho1, filho2]
     else
-        filhos[1] = BitVector(vcat(indv1[1:pivot], indv2[pivot+1:end]))
-        filhos[2] = BitVector(vcat(indv2[1:pivot], indv1[pivot+1:end]))
-          
+
+        cromo_x1 = BitVector(vcat(indv1.cromos[1][1:pivot], indv2.cromos[1][pivot+1:end]))
+    	cromo_x2 = BitVector(vcat(indv2.cromos[1][1:pivot], indv1.cromos[1][pivot+1:end]))
+
+        cromo_y1 = BitVector(vcat(indv1.cromos[2][1:pivot], indv2.cromos[2][pivot+1:end]))
+        cromo_y2 = BitVector(vcat(indv2.cromos[2][1:pivot], indv1.cromos[2][pivot+1:end]))
+
+        filho1 = Indv([cromo_x1, cromo_y1], get_float_back.([cromo_x1, cromo_y1]))
+        filho2 = Indv([cromo_x2, cromo_y2], get_float_back.([cromo_x2, cromo_y2]))
+        
+        return [filho1, filho2]
     end
-    
-    #println("pai 1: ", indv1)
-    #println("pai 2: ", indv2)
-    #println("---------------", pivot,"---------------")
-    #println("filho 1: ", filhos[1])
-    #println("filho 2: ", filhos[2])
-    
-    return filhos
 
 end
 
@@ -210,44 +238,29 @@ A regra que foi adotada para o crossover na população é:
 Para isso o vetor precisa estar ordenado
 """
 
-# ╔═╡ 021590ec-6e87-4bb1-9a30-5dbb96cfa662
-function sort_population(population::Matrix{BitVector}, aptidoes::AbstractVector{<:Real}; descending=true)
-    if size(population, 2) != length(aptidoes)
-        error("O número de indivíduos e de aptidões deve ser igual")
-    end
-
-    order = sortperm(aptidoes; rev=descending)
-    return population[:, order]
-end
-
 # ╔═╡ 6f6b09c6-f17d-4b80-8c4b-09cede87e3d6
-function crossover(population::Matrix{BitVector}, parents_a, parents_b; prob = 0.6)
+function crossover(population::Vector{Indv}, parents_a, parents_b)
     # cria um conjunto com todos os indices
     if length(parents_a) != length(parents_b)
         error("pais deve ter mesmo tamanho")
     end
 
+    new_population = Indv[]
+
     pai_a = pop!(parents_a, rand(parents_a))
     pai_b = pop!(parents_b, rand(parents_b))
-    if rand(Float32) <= prob             		
-        filho = vcat(crossover_indv(population[1,pai_a], population[1,pai_b]), crossover_indv(population[2,pai_a], population[2,pai_b]))
-        new_population = filho
-    else
-        filho = hcat(population[:, pai_a], population[:, pai_b])
-        new_population = (filho)
+    if rand(Float32) <= cross_prob            		
+        filhos = crossover(population[pai_a], population[pai_b])
+        new_population = vcat(new_population, filhos)
     end
 
     # repete o processo até acabarem os pais
     for pai_a in parents_a
         pai_b = pop!(parents_b, rand(parents_b))
         if rand(Float32) <= prob             		
-            filho = vcat(crossover_indv(population[1,pai_a], population[1,pai_b]), crossover_indv(population[2,pai_a], population[2,pai_b]))
-        	new_population = hcat(new_population, filho)
-        else
-            filho = hcat(population[:, pai_a], population[:, pai_b])
-            new_population = hcat(new_population, filho)       
+            filhos = crossover(population[pai_a], population[pai_b])
+            new_population = vcat(new_population, filhos)
         end
-        
     end
    return new_population
 end
@@ -258,31 +271,17 @@ A mutação ocorre em toda a geração com uma taxa de 1% por bit. Passamos por 
 """
 
 # ╔═╡ 3e9dd45f-4d2c-489b-8658-a53275269d8a
-function mutacao(dna::BitVector)
+function mutacao!(indv::Indv)
+    for i in eachindex(indv.cromos)           # para cada cromossomo (x, y)
+        for j in eachindex(indv.cromos[i])    # para cada but do cromossomo
+            if rand(Float32) <= mut_prob
+                indv.cromos[i][j] = !indv.cromos[i][j]
+            end
+        end
+    end
 
-	for i in eachindex(dna)
-		if rand(Float32) <= 0.01
-			#@show dna
-			dna[i] = !dna[i]
-			#println("mutacao idx: ", i)
-			#@show dna
-		end	
-	end 
-	
-	return dna
-
-end
-
-# ╔═╡ 13b9f11e-4a27-4eb4-b9a6-308b2f5dd76d
-function std_population(population::Matrix{BitVector})
-	z = [f(get_float_back(indv[1]), get_float_back(indv[2])) for indv in eachcol(population)]
-	return std(z)
-end
-
-# ╔═╡ 6e621b28-7403-49c6-a219-4949b8062f58
-function mean_population(population::Matrix{BitVector})
-	z = [f(get_float_back(indv[1]), get_float_back(indv[2])) for indv in eachcol(population)]
-	return mean(z)
+    # update the float values after mutation
+    indv.x = get_float_back.(indv.cromos)
 end
 
 # ╔═╡ 3c730587-9aec-4a5e-8576-5ec4f6ff5431
@@ -290,35 +289,170 @@ md"""
 Agora que temos tudo que é necessário para uma iteração do algoritimo genético podemos criar uma função para o algoritmo 
 """
 
-# ╔═╡ 1b1b300e-c2f7-4f53-a92a-32db4c7968e1
-function print_indv(indv::Vector{BitVector})
-	print("x: ", get_float_back(indv[1]))
-	print(" y: ", get_float_back(indv[2]))
-	print("\n")
-	println("aptidão: ", get_aptidao(indv))
+# ╔═╡ 8c872406-dc3e-4962-815f-9b023d1222de
+md"""
+## PSO
+"""
+
+# ╔═╡ 202444e9-d600-45cf-a25c-eb7ce689c404
+md"""
+Agora utilizaremos o PSO para resolver o problema
+"""
+
+# ╔═╡ 6f2e9b7e-891e-464b-8246-a58bce604418
+md"""
+Para o PSO o que pode variar de uma abordagem para a outra são os parâmetros. Temos os seguintes:
+"""
+
+# ╔═╡ 169d5d85-df67-499c-b010-846c30906e4e
+begin
+	const N_PARTICLES  = 30        # swarm size  (like population size in GA)
+	const N_DIMS       = 2         # number of variables (dimensions)
+	const MAX_ITER     = 50       # stopping criterion
+	const V_MAX        =  4.0      # max velocity (prevents overshooting)
+	const V_MIN        = -4.0
+	# Shi & Eberhart (1998) standard values
+	const W_MAX        = 0.9       # inertia weight start  (diversification)
+	const W_MIN        = 0.4       # inertia weight end    (intensification)
+	const C1           = 2.0       # cognitive coefficient (pull to personal best)
+	const C2           = 2.0       # social coefficient    (pull to global best)P
+end
+
+# ╔═╡ e138ad90-b585-483d-afaf-5120a8bb59a0
+md"""
+Criamos a seguinte estrutura para cada partícula
+"""
+
+# ╔═╡ 872a2042-9949-4558-acec-c00557633ceb
+mutable struct Particle
+    x     :: Vector{Float64}   # current position
+    v     :: Vector{Float64}   # current velocity
+    pbest :: Vector{Float64}   # personal best position
+    fbest :: Float64           # personal best fitness
+end
+
+# ╔═╡ 2764c982-5690-4ad2-a969-2459734e5a51
+md"""
+Inicialização da partícula
+"""
+
+# ╔═╡ ebf4ae26-bd58-4bb4-bf9f-3a0e92e23a88
+function init_swarm(f::Function;μ = 1)
+    swarm = Vector{Particle}(undef, N_PARTICLES)
+ 
+    for i in 1:N_PARTICLES
+        # Random position in [X_MIN, X_MAX]
+        x = X_MIN .+ (X_MAX - X_MIN) .* rand(N_DIMS)
+        # Random initial velocity in [V_MIN, V_MAX]
+        v = V_MIN .+ (V_MAX - V_MIN) .* rand(N_DIMS)
+
+        penalidade = (x[1]^2 + x[2]^2 - 1)^2 # usei a mesma do AG
+        fitness = f(x) - μ * penalidade
+ 
+        swarm[i] = Particle(x, v, copy(x), fitness)
+    end
+ 
+    return swarm
+end
+
+# ╔═╡ 3b9877ba-142a-4926-aacd-bcaf1729ac02
+md"""
+Guardando o melhor resultado das particulas
+"""
+
+# ╔═╡ a1806c6e-ca52-4b6b-a12c-ab83469082d5
+function find_gbest(swarm::Vector{Particle})
+    best_idx = argmax(p.fbest for p in swarm)
+    return copy(swarm[best_idx].pbest), swarm[best_idx].fbest
+end
+
+# ╔═╡ dae5b940-6191-4a17-a5b3-e52340eef788
+md"""
+Atualizando a velocidade
+"""
+
+# ╔═╡ e3c8cc7e-62f4-427e-9f78-75bb44b5cff5
+function update_velocity!(p::Particle, gbest::Vector{Float64}, W::Float64)
+    r1 = rand(N_DIMS)   # random vector for cognitive component
+    r2 = rand(N_DIMS)   # random vector for social component
+ 
+    inertia   = W  .* p.v
+    cognitive = C1 .* r1 .* (p.pbest .- p.x)
+    social    = C2 .* r2 .* (gbest   .- p.x)
+ 
+    p.v = inertia .+ cognitive .+ social
+ 
+    # Clamp velocity to [V_MIN, V_MAX] to prevent particles flying off
+    p.v = clamp.(p.v, V_MIN, V_MAX)
+end
+
+# ╔═╡ 75e586f5-60aa-4b04-bf56-00028b862949
+md"""
+Atualizando a posição das particulas
+"""
+
+# ╔═╡ 3a8e5257-a0ce-446a-a835-018a45cd9048
+function update_position!(p::Particle)
+    p.x = p.x .+ p.v
+ 
+    for j in 1:N_DIMS
+        if p.x[j] < X_MIN
+            p.x[j] = X_MIN
+            p.v[j] = 0.0      # zero velocity on boundary hit
+        elseif p.x[j] > X_MAX
+            p.x[j] = X_MAX
+            p.v[j] = 0.0
+        end
+    end
+end
+ 
+
+# ╔═╡ 79e5e392-9d59-4aac-b8c2-8545a143684d
+md"""
+Atualizando o personal best
+"""
+
+# ╔═╡ 45d72d1f-d0e6-4360-a737-1654ee1c934e
+md"""
+Redução linear da inercia
+"""
+
+# ╔═╡ 97216d3c-3fcc-4110-9f48-772638bf3baa
+function inertia_weight(t::Int)
+    return W_MAX - t * (W_MAX - W_MIN) / MAX_ITER
+end
+
+
+# ╔═╡ 7ba3dca8-cf1f-40e2-b332-7951d4db27f4
+function f_pso(x::Vector{Float64})
+	return (x[1] - 1)^2 + x[2]^2 - 2
+end
+
+# ╔═╡ dc262aca-0967-47f4-ab47-5af47a86724f
+function fitness(x::Vector{Float64}; μ=1)
+    penalidade = (x[1]^2 + x[2]^2 - 1)^2
+    return f_pso(x) - μ * penalidade
 end
 
 # ╔═╡ 3d1cd6d1-fa57-43d4-9d93-03199efc6844
-function torneio(population::Matrix{BitVector}, aptidoes::Vector{Float64})
-    ncols = size(population, 2)
-    nrows = size(population, 1)
-    m = div(ncols, 2)
+function torneio(population::Vector{Indv})
+    pop_size = length(population)
+    m = div(pop_size, 2)
     winners = Set()
+    aptidoes = [fitness(indv.x) for indv in population]
     
-    idx = Set(1:ncols)
+    idx = Set(1:pop_size)
 
-    for i in 1:m
+    for i in m
         idx1 = pop!(idx, rand(idx))
         idx2 = pop!(idx, rand(idx))
 
-        indv1 = population[:, idx1]
-        indv2 = population[:, idx2]
+        indv1 = population[idx1]
+        indv2 = population[idx2]
         
         if aptidoes[idx1] > aptidoes[idx2]
-            print_indv(indv1)
             push!(winners, idx1)
         else
-            print_indv(indv2)
             push!(winners, idx2)
         end
     end
@@ -326,90 +460,234 @@ function torneio(population::Matrix{BitVector}, aptidoes::Vector{Float64})
 end
 
 # ╔═╡ b740d1c4-334d-4b80-a132-5e573726881c
-function ag(pop_size::Int, geracoes::Int)
+function ag()
 
-	pond = LinRange(5, 20, geracoes) # para a ponderacao ir aumentando
+	pond = LinRange(5, 20, GERACOES) # para a ponderacao ir aumentando
 	
     # gerar população incial
-    population = generate_population(pop_size)
+    population = generate_population(INDVS)
 
-	medias = Vector{Float64}(undef, geracoes)
-	stds = Vector{Float64}(undef, geracoes)
-	populations = Vector{Matrix}(undef, geracoes)
+	medias = Vector{Float64}(undef, GERACOES)
+	stds = Vector{Float64}(undef, GERACOES)
+	pop_history = Vector[]
+
+    println("Starting PSO — $(INDVS) particles, $(GERACOES) gerações")
+    println("─────────────────────────────────────────────")
 	
-	for i in 1:geracoes
-		aptidoes = [get_aptidao(population[:, j], pond=pond[i]) for j in axes(population, 2)] 
-		parents_a = torneio(population, aptidoes)
-		parents_b = torneio(population, aptidoes)
-		new_pop = crossover(population, parents_a, parents_b, prob=0.8)
-		mutacao.(new_pop)
-		#
-		population = hcat(population, new_pop)
-		@show aptidoes = [get_aptidao(population[:, j], pond=pond[i]) for j in axes(population, 2)] 
-		population = sort_population(population, aptidoes)
-		population = population[:, 1:pop_size]
+	for i in 1:GERACOES
+		parents_a = torneio(population)
+		parents_b = torneio(population)
+		new_pop = crossover(population, parents_a, parents_b)
+		mutacao!.(new_pop)
+		
+		population = vcat(population, new_pop)
+		sort!(population, by = indv -> fitness(indv.x), rev=true) # ordena decres
+		population = population[1:INDVS]
 
-		medias[i] = mean_population(population)
-		stds[i] = std_population(population)
-		populations[i] = population
+    	aptidoes = [fitness(indv.x) for indv in population]
+		medias[i] = mean(aptidoes)
+		stds[i] = std(aptidoes)
 
-		if stds[i] < 0.0001
+		# cada 5 iterações
+        if i % 5 == 0 || i == 1
+            @printf("Iter %4d | Best Indv = %.8f\n", i, aptidoes[1])
+			push!(pop_history, deepcopy(population))  #snapshot
+        end
+
+		if stds[i] < 0.001
 			break # condição de parada
 		end
 		
 	end
 
-	return medias, stds, populations
+	return medias, stds, pop_history
 end
 
 
 # ╔═╡ 7234f6ba-96a1-43c4-9968-51d699029c8a
-medias, stds, populations = ag(16, 20)
-
-# ╔═╡ bd0a26cb-4fa2-4101-bcea-d1423929c439
-stds
+medias, stds, pop_history = ag()
 
 # ╔═╡ 5b7613c6-7fb7-4415-a20f-169cf03866b5
-lines(medias)
+begin
+	fig_media = Figure()
+	ax_media = Axis(fig_media[1, 1], title="media aptidao")
+	lines!(ax_media, medias)
+	fig_media
+end
 
 # ╔═╡ 6b1d7eb2-2aea-47dd-a49e-ea5de7a104ad
-lines(stds)
-
-# ╔═╡ bd20f04a-5414-49f2-b643-088279eeb3d9
-get_aptidao(populations[1][:, 1])
-
-# ╔═╡ 77afa0bc-eeed-4e7c-9d8a-ee4a3cee5fcb
-get_float_back.(populations[1][1, :])
+begin
+	fig_std = Figure()
+	ax_std = Axis(fig_std[1, 1], title="std aptidao")
+	lines!(ax_std, stds)
+	fig_std
+end
 
 # ╔═╡ 357454a9-46a5-480a-931a-49270443b6c3
-begin
-    n_pops = length(populations)
-    n_cols = 3
-    n_rows = ceil(Int, n_pops / n_cols)
+function plot_pop_history(pop_history::Vector{Vector})
+    n_plots = length(pop_history)
+    n_cols  = 3
+    n_rows  = ceil(Int, n_plots / n_cols)
 
-    fig_res = Figure(size=(800 , 1200))
+    fig = Figure(size=(200 * n_cols, 200 * n_rows))
 
-    for idx in 1:20
+    θ = range(0, 2π, length=100)
+    xc = cos.(θ)
+    yc = sin.(θ)
+
+    for (idx, pop) in enumerate(pop_history)
         row = ceil(Int, idx / n_cols)
         col = mod1(idx, n_cols)
 
-        ax = Axis(fig_res[row, col],
-            title  = "Geração $idx",
-            limits = ((-3, 3), (-3, 3)))
+        ax = Axis(fig[row, col],
+            title  = "Geração $((idx-1)*5)",
+            limits = ((-2, 2), (-2, 2)),
+            aspect = DataAspect())
 
-        lines!(ax, cos.(θ), sin.(θ), color = :black)
+        # constraint circle
+        lines!(ax, xc, yc, color=:black, linewidth=1.5)
 
-        x = get_float_back.(populations[idx][1, :])
-        y = get_float_back.(populations[idx][2, :])
-        scatter!(ax, x, y, color = :red)
+        # individuals
+        xs = [indv.x[1] for indv in pop]
+        ys = [indv.x[2] for indv in pop]
+        scatter!(ax, xs, ys, color=:blue, markersize=8)
+
+        # best individual of this snapshot
+        best = argmax(fitness(indv.x) for indv in pop)
+        scatter!(ax, [pop[best].x[1]], [pop[best].x[2]],
+            color=:green, marker=:star5, markersize=14)
+
+        # global maximum at (-1, 0)
+        scatter!(ax, [-1.0], [0.0],
+            color=:red, marker=:xcross, markersize=16,
+            strokewidth=2)
     end
 
-    fig_res
+    fig
 end
+
+# ╔═╡ e98da939-a8a7-4fab-b600-efe54c26e2b0
+plot_pop_history(pop_history)
+
+# ╔═╡ 8f2f1e18-a1b0-4db4-a14a-bb066e81e28a
+function update_pbest!(p::Particle; μ=1)
+    f_new = fitness(p.x,μ=μ)
+    if f_new > p.fbest
+        p.fbest = f_new
+        p.pbest = copy(p.x)
+    end
+end
+
+# ╔═╡ b9163554-0c48-4c3d-90fb-f4e70c8213d7
+function pso(f::Function; seed::Int=42, μ=1)
+    Random.seed!(seed)
+ 
+    # --- Initialise swarm
+    swarm = init_swarm(f, μ=μ)
+    gbest, gbest_fitness = find_gbest(swarm)
+ 
+    history = Float64[]   # track best fitness per iteration
+    swarm_history = Vector{Vector{Particle}}()
+ 
+    println("Iniciando PSO — $(N_PARTICLES) particulas, $(MAX_ITER) iteracoes")
+    println("─────────────────────────────────────────────")
+ 
+    for t in 1:MAX_ITER
+ 
+        # Compute inertia weight for this iteration
+        W = inertia_weight(t)
+ 
+        for p in swarm
+            # Step 5: update velocity (cognitive + social + inertia)
+            update_velocity!(p, gbest, W)
+ 
+            # Step 6: update position
+            update_position!(p)
+ 
+            # Step 7: update personal best
+            update_pbest!(p, μ=μ)
+        end
+ 
+        # Step 8: update global best across whole swarm
+        gbest, gbest_fitness = find_gbest(swarm)
+        push!(history, gbest_fitness)
+ 
+        # Print progress every 10 iterations
+        if t % 10 == 0 || t == 1
+            @printf("Iter %4d | W = %.3f | gbest fitness = %.8f\n",
+                    t, W, gbest_fitness)
+            push!(swarm_history, deepcopy(swarm))  # deepcopy — full snapshot
+        end
+    
+    end
+
+
+    
+    println("─────────────────────────────────────────────")
+    println("Melhor posicao : ", round.(gbest, digits=6))
+    println("Melhor aptidao  : ", round(gbest_fitness, digits=10))
+ 
+    return gbest, gbest_fitness, history, swarm_history
+end
+
+# ╔═╡ 5f31b89f-d11c-4389-97ff-2b36dbdd3505
+gbest, gbest_fitness, history, swarm_history = pso(f_pso, μ=20)
+
+# ╔═╡ d354cf49-40cd-4fdf-9e43-d2357fd44b4a
+function plot_swarm_history(swarm_history::Vector{Vector{Particle}})
+    n_plots = length(swarm_history)
+    n_cols  = 3
+    n_rows  = ceil(Int, n_plots / n_cols)
+
+    fig = Figure(size=(200 * n_cols, 200 * n_rows))
+
+    θ = range(0, 2π, length=100)
+    xc = cos.(θ)
+    yc = sin.(θ)
+
+    for (idx, swarm) in enumerate(swarm_history)
+        row = ceil(Int, idx / n_cols)
+        col = mod1(idx, n_cols)
+
+        ax = Axis(fig[row, col],
+            title  = "Iteração $((idx-1)*10)",
+            limits = ((-2, 2), (-2, 2)),
+            aspect = DataAspect())
+
+        # constraint circle
+        lines!(ax, xc, yc, color=:black, linewidth=1.5, label="restrição")
+
+        # particles
+        xs = [p.x[1] for p in swarm]
+        ys = [p.x[2] for p in swarm]
+        scatter!(ax, xs, ys, color=:blue, markersize=8, label="partículas")
+
+        # gbest of this snapshot
+        best = argmax(p.fbest for p in swarm)
+        scatter!(ax, [swarm[best].pbest[1]], [swarm[best].pbest[2]],
+            color=:green, marker=:star5, markersize=14, label="gbest")
+
+        # global maximum marker at (-1, 0)
+        scatter!(ax, [-1.0], [0.0],
+            color=:red, marker=:xcross, markersize=16,
+            strokewidth=2, label="máximo")
+    end
+
+    fig
+end
+
+# ╔═╡ 4f906b8b-f572-4a0c-bbe5-1750a82c39cb
+plot_swarm_history(swarm_history)
+
+# ╔═╡ 268acbf7-0a33-4605-9a8b-b88e0f62a34b
+md"""
+## Comparação entre os algortimos
+"""
 
 # ╔═╡ 00000000-0000-0000-0000-000000000001
 PLUTO_PROJECT_TOML_CONTENTS = """
 [deps]
+Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
 Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
 Statistics = "10745b16-79ce-11e8-11f9-7d13ad32a3b2"
 WGLMakie = "276b4fcb-3e11-5398-bf8b-a0c2d153d008"
@@ -424,7 +702,7 @@ PLUTO_MANIFEST_TOML_CONTENTS = """
 
 julia_version = "1.12.4"
 manifest_format = "2.0"
-project_hash = "499fc436499e12ac5dd06763c6ce4bd125ee7b13"
+project_hash = "1c06f4ac0906c99c658dec62b3f00c98b29c8c03"
 
 [[deps.AbstractFFTs]]
 deps = ["LinearAlgebra"]
@@ -2073,43 +2351,65 @@ version = "4.1.0+0"
 # ╠═0e9406c8-65c2-11f1-becf-a1d69c52f94f
 # ╠═c1129640-fcc8-4059-9e2e-1e61af138465
 # ╠═9ebcf1e0-9768-4ea8-9879-8a00b2a39c58
+# ╟─72413dda-5121-4722-b0cf-85b99d77f762
 # ╟─1af3418c-b98e-4f52-bfda-2cdc9f32acf1
 # ╟─b8083727-3a03-4fcf-842b-c42c1f28df9f
 # ╠═a868a63a-e7fe-4a60-a0ac-759421d99ba2
-# ╠═fe9c4466-3e3d-4bc9-b42a-f2f6cf038588
+# ╟─fe9c4466-3e3d-4bc9-b42a-f2f6cf038588
 # ╠═2d02826d-de55-44e4-b672-2fd9b47bc9a8
 # ╟─1b99fa70-adba-40cf-9e68-cc56e3684ddb
+# ╟─761678aa-72e7-462c-960e-e948e1009883
+# ╟─8b31dca9-e4ec-4bc3-ab7c-4110585d8e45
+# ╠═6ecab8ea-466d-4f8a-b924-acdd711f6a9c
 # ╟─b9f986fc-5dcd-4470-8a2c-09c59a2e6e4f
+# ╠═60e072e3-f9f0-445f-a338-a90207700efb
 # ╠═d830fbcb-5dcb-48d7-a223-05c8a7f7428d
 # ╟─72f824b3-0bff-4be2-9e53-4e00bdc403d0
 # ╟─cdd85e02-9786-4cfc-bffd-26b1c8a73c8a
 # ╠═306fe017-da30-4871-8606-c62a4e1a330e
 # ╟─14a6ee83-bd4b-466a-b193-ca7773bbabc2
+# ╠═30441865-da0d-4e1b-adde-cf67896373fa
 # ╟─5ec82d64-75ec-473f-acb7-f66b4cf175c6
-# ╠═8b30ce05-f096-4722-841e-679b3024b7b9
-# ╠═514df095-d19d-41de-8820-2acd7f5c4cfd
-# ╠═73b820a9-e6dc-4d86-93ee-d85bcf5d5a91
-# ╠═936a79d5-39fc-4c5a-9fe0-3e3f0e1d821e
 # ╟─08b228bd-d3f6-411c-bb2b-a9910dd3d2fa
 # ╠═3d1cd6d1-fa57-43d4-9d93-03199efc6844
 # ╟─afc8af7d-69a2-48ee-b028-615ddec83e70
 # ╠═44c10b19-0f13-4eb7-b81f-143df703716d
 # ╟─227d4ccb-cdfb-4b0b-a1d6-321b9268d966
-# ╠═021590ec-6e87-4bb1-9a30-5dbb96cfa662
 # ╠═6f6b09c6-f17d-4b80-8c4b-09cede87e3d6
 # ╟─d94f7a8a-cf6a-498e-8742-1ebbc79a2954
 # ╠═3e9dd45f-4d2c-489b-8658-a53275269d8a
-# ╠═13b9f11e-4a27-4eb4-b9a6-308b2f5dd76d
-# ╠═6e621b28-7403-49c6-a219-4949b8062f58
 # ╟─3c730587-9aec-4a5e-8576-5ec4f6ff5431
 # ╠═b740d1c4-334d-4b80-a132-5e573726881c
-# ╠═bd0a26cb-4fa2-4101-bcea-d1423929c439
 # ╠═7234f6ba-96a1-43c4-9968-51d699029c8a
-# ╠═5b7613c6-7fb7-4415-a20f-169cf03866b5
-# ╠═6b1d7eb2-2aea-47dd-a49e-ea5de7a104ad
-# ╠═bd20f04a-5414-49f2-b643-088279eeb3d9
-# ╠═77afa0bc-eeed-4e7c-9d8a-ee4a3cee5fcb
-# ╠═357454a9-46a5-480a-931a-49270443b6c3
-# ╠═1b1b300e-c2f7-4f53-a92a-32db4c7968e1
+# ╟─5b7613c6-7fb7-4415-a20f-169cf03866b5
+# ╟─6b1d7eb2-2aea-47dd-a49e-ea5de7a104ad
+# ╟─357454a9-46a5-480a-931a-49270443b6c3
+# ╠═e98da939-a8a7-4fab-b600-efe54c26e2b0
+# ╟─8c872406-dc3e-4962-815f-9b023d1222de
+# ╟─202444e9-d600-45cf-a25c-eb7ce689c404
+# ╟─6f2e9b7e-891e-464b-8246-a58bce604418
+# ╠═169d5d85-df67-499c-b010-846c30906e4e
+# ╟─e138ad90-b585-483d-afaf-5120a8bb59a0
+# ╠═872a2042-9949-4558-acec-c00557633ceb
+# ╟─2764c982-5690-4ad2-a969-2459734e5a51
+# ╠═dc262aca-0967-47f4-ab47-5af47a86724f
+# ╠═ebf4ae26-bd58-4bb4-bf9f-3a0e92e23a88
+# ╟─3b9877ba-142a-4926-aacd-bcaf1729ac02
+# ╠═a1806c6e-ca52-4b6b-a12c-ab83469082d5
+# ╟─dae5b940-6191-4a17-a5b3-e52340eef788
+# ╠═e3c8cc7e-62f4-427e-9f78-75bb44b5cff5
+# ╟─75e586f5-60aa-4b04-bf56-00028b862949
+# ╠═3a8e5257-a0ce-446a-a835-018a45cd9048
+# ╟─79e5e392-9d59-4aac-b8c2-8545a143684d
+# ╠═8f2f1e18-a1b0-4db4-a14a-bb066e81e28a
+# ╟─45d72d1f-d0e6-4360-a737-1654ee1c934e
+# ╠═97216d3c-3fcc-4110-9f48-772638bf3baa
+# ╟─bce9f970-b828-4f1e-bb0b-750291eb9984
+# ╠═b9163554-0c48-4c3d-90fb-f4e70c8213d7
+# ╠═7ba3dca8-cf1f-40e2-b332-7951d4db27f4
+# ╠═5f31b89f-d11c-4389-97ff-2b36dbdd3505
+# ╟─d354cf49-40cd-4fdf-9e43-d2357fd44b4a
+# ╠═4f906b8b-f572-4a0c-bbe5-1750a82c39cb
+# ╟─268acbf7-0a33-4605-9a8b-b88e0f62a34b
 # ╟─00000000-0000-0000-0000-000000000001
 # ╟─00000000-0000-0000-0000-000000000002
