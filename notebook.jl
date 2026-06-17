@@ -13,7 +13,7 @@ using Random
 # ╔═╡ 9ebcf1e0-9768-4ea8-9879-8a00b2a39c58
 using Statistics
 
-# ╔═╡ bce9f970-b828-4f1e-bb0b-750291eb9984
+# ╔═╡ 687b5b3a-2a52-4e5a-9976-64973342b5cc
 using Printf
 
 # ╔═╡ 72413dda-5121-4722-b0cf-85b99d77f762
@@ -44,34 +44,9 @@ function f(x, y)
 	return (x - 1)^2 + y^2 - 2
 end
 
-# ╔═╡ fe9c4466-3e3d-4bc9-b42a-f2f6cf038588
-begin
-	xs = LinRange(-π, π, 60)
-	ys = LinRange(-π, π, 60)
-	zs = [f(x, y) for x in xs, y in ys]
-	fig = Figure(size = (800, 600))
-	ax  = Axis3(fig[1, 1], title = "f(x, y)", xlabel="x", ylabel="y", zlabel="z")
-	plt = surface!(ax, xs, ys, zs)
-	Colorbar(fig[1, 2], plt)
-
-	θ = LinRange(0, 2π, 100)   # ângulo
-    z = LinRange(-10, 30, 50)    # altura
-    
-    # Malha 2D: cada ponto (θ, z) → (x, y, z)
-    X = [cos(t) for t in θ, _ in z]
-    Y = [sin(t) for t in θ, _ in z]
-    Z = [zv     for _ in θ, zv in z]
-    
-    surface!(ax, X, Y, Z, colormap = :blues, alpha = 0.7, transparency = true)
-	
-end
-
-# ╔═╡ 2d02826d-de55-44e4-b672-2fd9b47bc9a8
-fig
-
 # ╔═╡ 1b99fa70-adba-40cf-9e68-cc56e3684ddb
 md"""
-Dessa forma, as nossas possiveis solução estão na interseção dessas duas superfícies
+Dessa forma, as nossas possiveis soluções estão na interseção dessas duas superfícies
 """
 
 # ╔═╡ 761678aa-72e7-462c-960e-e948e1009883
@@ -83,23 +58,24 @@ md"""
 md"""
 Para atacar o problema vamos utilizar uma formulação de Algoritmo Genético.
 
-Primeiramente vamos definir algumas constantes
+Primeiramente vamos definir algumas constantes:
 """
 
 # ╔═╡ 6ecab8ea-466d-4f8a-b924-acdd711f6a9c
 begin
 	const X_MAX      = 3.0 # Limitando espaço de busca
 	const X_MIN      = -3.0 # Limitando espaço de busca
-	const μ          = 10 # Importante para a restrição
-	const cross_prob = 0.60 # Probabilidade de crossover
-	const mut_prob   = 0.01 # Probabilidade de mutação
-	const INDVS       = 20
-	const GERACOES   = 25
+	const μ_ini      = 20 # restrição do inicio
+	const μ          = 5 # Importante para a restrição
+	const cross_prob = 0.80 # Probabilidade de crossover
+	const mut_prob   = 0.02 # Probabilidade de mutação
+	const INDVS      = 30 # Numero de individuos
+	const GERACOES   = 50 # Numero max de gerações
 end
 
 # ╔═╡ b9f986fc-5dcd-4470-8a2c-09c59a2e6e4f
 md"""
-Começamos com uma população inicial de possives soluções, que no nosso caso os individuos foram gerados aleatoriamente
+Começamos com uma população inicial de possives soluções, que no nosso caso os individuos foram gerados aleatoriamente.
 """
 
 # ╔═╡ 60e072e3-f9f0-445f-a338-a90207700efb
@@ -110,7 +86,7 @@ end
 
 # ╔═╡ 72f824b3-0bff-4be2-9e53-4e00bdc403d0
 md"""
-Escolhemos representar cada indivíduo como um vetor de (22)bits. Nós geramos cada individuo de forma que nossa população é uma matriz de vetores de bits, onde a linha 1 é a coordenada e a linha 2 é a coordenada y. Consequentemente cada individuo é uma coluna dessa matriz.
+Escolhemos representar cada indivíduo como um vetor de (32)bits.
 """
 
 # ╔═╡ cdd85e02-9786-4cfc-bffd-26b1c8a73c8a
@@ -148,15 +124,50 @@ md"""
 Agora que temos nossos individuos precisamos de uma forma de calcular a aptidão. Essa métrica será importante para a cada geração escolher os indivíduos mais aptos (as melhores soluções)
 """
 
+# ╔═╡ acac16f3-5a1f-4073-adcc-3531e80b6cc4
+function f(x::Vector)
+	return (x[1] - 1)^2 + x[2]^2 - 2
+end
+
+# ╔═╡ fe9c4466-3e3d-4bc9-b42a-f2f6cf038588
+begin
+	xs = LinRange(-π, π, 60)
+	ys = LinRange(-π, π, 60)
+	zs = [f(x, y) for x in xs, y in ys]
+	fig = Figure(size = (800, 600))
+	ax  = Axis3(fig[1, 1], title = "f(x, y)", xlabel="x", ylabel="y", zlabel="z")
+	plt = surface!(ax, xs, ys, zs)
+	Colorbar(fig[1, 2], plt)
+
+	θ = LinRange(0, 2π, 100)   # ângulo
+    z = LinRange(-10, 30, 50)    # altura
+    
+    # Malha 2D: cada ponto (θ, z) → (x, y, z)
+    X = [cos(t) for t in θ, _ in z]
+    Y = [sin(t) for t in θ, _ in z]
+    Z = [zv     for _ in θ, zv in z]
+    
+    surface!(ax, X, Y, Z, colormap = :blues, alpha = 0.7, transparency = true)
+	
+end
+
+# ╔═╡ 2d02826d-de55-44e4-b672-2fd9b47bc9a8
+fig
+
 # ╔═╡ 30441865-da0d-4e1b-adde-cf67896373fa
-function fitness(f::Function, x::Vector{Float64}; max=true)
+function fitness(f::Function, x::Vector{Float64}; max=true, pond=μ)
     penalidade = (x[1]^2 + x[2]^2 - 1)^2
     if max
-        return f(x) - μ * penalidade
+        return f(x) - pond * penalidade
     else
-        return -f(x) - μ * penalidade
+        return -f(x) - pond * penalidade
     end
 end
+
+# ╔═╡ 82bdaa93-f722-4368-a53c-faec19076ee0
+md"""
+Foi escolhido representar aptidão sempre como positiva, tanto para maximização quanto para minimização
+"""
 
 # ╔═╡ 5ec82d64-75ec-473f-acb7-f66b4cf175c6
 md"""
@@ -175,8 +186,33 @@ $$p(x, y) = \big(r(x, y) - z\big)^2$$
 
 # ╔═╡ 08b228bd-d3f6-411c-bb2b-a9910dd3d2fa
 md"""
-Agora que temos uma forma de calcular as aptidões podemos adicionar a etapa do torneio, que sorteia aleatoriamente 2 individuos na população e apenas o com maior aptidão é mantido para a proxima geração
+Agora que temos uma forma de calcular as aptidões podemos adicionar a etapa do torneio, que sorteia aleatoriamente 2 individuos na população e apenas o com maior aptidão é escolhido para gerar filhos (próxima etapa).
 """
+
+# ╔═╡ 3d1cd6d1-fa57-43d4-9d93-03199efc6844
+function torneio(population::Vector{Indv}; max=true)
+    pop_size = length(population)
+    m = div(pop_size, 2)
+    winners = Set()
+    aptidoes = [fitness(f, indv.x, max=max) for indv in population]
+    
+    idx = Set(1:pop_size)
+
+    for i in 1:m
+        idx1 = pop!(idx, rand(idx))
+        idx2 = pop!(idx, rand(idx))
+
+        indv1 = population[idx1]
+        indv2 = population[idx2]
+        
+        if aptidoes[idx1] > aptidoes[idx2]
+            push!(winners, idx1)
+        else
+            push!(winners, idx2)
+        end
+    end
+    return winners
+end
 
 # ╔═╡ afc8af7d-69a2-48ee-b028-615ddec83e70
 md"""
@@ -189,7 +225,7 @@ function crossover(indv1::Indv, indv2::Indv)
         error("Tamanho dos individuos nao bate")
     end
 
-    n = length(indv1.cromos)
+    n = length(indv1.cromos[1])
     pivot = rand(1:n)
     
     if pivot == 1
@@ -234,35 +270,35 @@ end
 # ╔═╡ 227d4ccb-cdfb-4b0b-a1d6-321b9268d966
 md"""
 A regra que foi adotada para o crossover na população é:
-	os dois mais aptos sempre continuam na proxima geracao.
-Para isso o vetor precisa estar ordenado
+
+Geramos os filhos da geração passada e concatenamos eles à população atual.
+
 """
 
 # ╔═╡ 6f6b09c6-f17d-4b80-8c4b-09cede87e3d6
 function crossover(population::Vector{Indv}, parents_a, parents_b)
-    # cria um conjunto com todos os indices
     if length(parents_a) != length(parents_b)
         error("pais deve ter mesmo tamanho")
     end
 
     new_population = Indv[]
 
-    pai_a = pop!(parents_a, rand(parents_a))
+    pai_a = pop!(parents_a, rand(parents_a)) # sorteia um indice
     pai_b = pop!(parents_b, rand(parents_b))
     if rand(Float32) <= cross_prob            		
-        filhos = crossover(population[pai_a], population[pai_b])
+        filhos = crossover(population[pai_a], population[pai_b]) # aplica o crossover para os indices escolhidos
         new_population = vcat(new_population, filhos)
     end
 
     # repete o processo até acabarem os pais
     for pai_a in parents_a
         pai_b = pop!(parents_b, rand(parents_b))
-        if rand(Float32) <= prob             		
+        if rand(Float32) <= cross_prob             		
             filhos = crossover(population[pai_a], population[pai_b])
             new_population = vcat(new_population, filhos)
         end
     end
-   return new_population
+   return new_population # essa nova geração será concatenada à população
 end
 
 # ╔═╡ d94f7a8a-cf6a-498e-8742-1ebbc79a2954
@@ -288,6 +324,178 @@ end
 md"""
 Agora que temos tudo que é necessário para uma iteração do algoritimo genético podemos criar uma função para o algoritmo 
 """
+
+# ╔═╡ ad52ff37-c08c-4c4c-87d9-a667a673b817
+md"""
+Optamos por nas primeiras iterações aumentar bastante o peso da penalidade, de forma que obrigue os individuos a respeitarem as restrições. Passadas essas primeiras gerações o peso diminui. Dando mais importância para o valor da função, uma vez que os individuos estão mais próximos de respeitarem as restrições
+"""
+
+# ╔═╡ b740d1c4-334d-4b80-a132-5e573726881c
+function ag(;max=true)
+
+	Random.seed!(42)
+	
+    # gerar população incial
+    population = generate_population(INDVS)
+
+	medias = Float64[]
+	stds = Float64[]
+	pop_history = Vector[]
+
+    println("Iniciando GA — $(INDVS) particles, $(GERACOES) gerações")
+    println("─────────────────────────────────────────────")
+
+	for i in 1:5 # primeiras 5 gerações com muito penalidade
+		parents_a = torneio(population, max=max)
+		parents_b = torneio(population, max=max)
+		new_pop = crossover(population, parents_a, parents_b)
+		mutacao!.(new_pop)
+		
+		population = vcat(population, new_pop)
+		sort!(population, by = indv -> fitness(f, indv.x, max=max, pond=μ_ini), rev=true) # ordena decres
+		population = population[1:INDVS]
+
+    	aptidoes = [fitness(f, indv.x, max=max, pond=μ_ini) for indv in population]
+		push!(medias, mean(aptidoes))
+		push!(stds, std(aptidoes))
+
+		# cada 5 iterações
+        if i % 5 == 0 || i == 1
+            @printf("Iter %4d | Best Indv = %.8f\n", i, aptidoes[1])
+			push!(pop_history, deepcopy(population))  #snapshot
+        end
+
+		if stds[i] < 0.01
+			break # condição de parada
+		end
+	end
+	
+	for i in 1:GERACOES
+		parents_a = torneio(population, max=max)
+		parents_b = torneio(population, max=max)
+		new_pop = crossover(population, parents_a, parents_b)
+		mutacao!.(new_pop)
+		
+		population = vcat(population, new_pop)
+		sort!(population, by = indv -> fitness(f, indv.x, max=max), rev=true) # ordena decres
+		population = population[1:INDVS]
+
+    	aptidoes = [fitness(f, indv.x, max=max) for indv in population]
+		push!(medias, mean(aptidoes))
+		push!(stds, std(aptidoes))
+
+		# cada 5 iterações
+        if i % 5 == 0 || i == 1
+            @printf("Iter %4d | Best Indv = %.8f\n", i, aptidoes[1])
+			push!(pop_history, deepcopy(population))  #snapshot
+        end
+
+		if stds[i] < 0.01
+			break # condição de parada
+		end
+		
+	end
+
+println("─────────────────────────────────────────────")
+    println("Melhor posicao : ", round(fitness(f, pop_history[end][1].x, max=max), digits=6))
+    println("Melhor aptidao  : ", round.(pop_history[end][1].x, digits=10))
+
+	return medias, stds, pop_history
+end
+
+
+# ╔═╡ 7234f6ba-96a1-43c4-9968-51d699029c8a
+medias_max, stds_max, pop_history_max = ag()
+
+# ╔═╡ 5b7613c6-7fb7-4415-a20f-169cf03866b5
+begin
+	fig_media_max = Figure()
+	ax_media_max = Axis(fig_media_max[1, 1], title="media_max aptidao")
+	lines!(ax_media_max, medias_max)
+	fig_media_max
+end
+
+# ╔═╡ 6b1d7eb2-2aea-47dd-a49e-ea5de7a104ad
+begin
+	fig_std_max = Figure()
+	ax_std_max = Axis(fig_std_max[1, 1], title="std_max aptidao")
+	lines!(ax_std_max, stds_max)
+	fig_std_max
+end
+
+# ╔═╡ 357454a9-46a5-480a-931a-49270443b6c3
+function plot_pop_history(pop_history::Vector{Vector}; max=true)
+    n_plots = length(pop_history)
+    n_cols  = 3
+    n_rows  = ceil(Int, n_plots / n_cols)
+
+    fig = Figure(size=(200 * n_cols, 200 * n_rows))
+
+    θ = range(0, 2π, length=100)
+    xc = cos.(θ)
+    yc = sin.(θ)
+
+    for (idx, pop) in enumerate(pop_history)
+        row = ceil(Int, idx / n_cols)
+        col = mod1(idx, n_cols)
+
+        ax = Axis(fig[row, col],
+            title  = "Geração $((idx-1)*5)",
+            limits = ((-2, 2), (-2, 2)),
+            aspect = DataAspect())
+
+        # constraint circle
+        lines!(ax, xc, yc, color=:black, linewidth=1.5)
+
+        # individuals
+        xs = [indv.x[1] for indv in pop]
+        ys = [indv.x[2] for indv in pop]
+        scatter!(ax, xs, ys, color=:blue, markersize=8)
+
+        # best individual of this snapshot
+        best = argmax(fitness(f, indv.x, max=max) for indv in pop)
+        scatter!(ax, [pop[best].x[1]], [pop[best].x[2]],
+            color=:green, marker=:star5, markersize=14)
+
+        # global maximum at (-1, 0)
+        if max
+            scatter!(ax, [-1.0], [0.0],
+                color=:red, marker=:xcross, markersize=16,
+                strokewidth=2)
+        else
+            scatter!(ax, [1.0], [0.0],
+                color=:red, marker=:xcross, markersize=16,
+                strokewidth=2)
+        end
+    end
+
+    fig
+end
+
+# ╔═╡ e98da939-a8a7-4fab-b600-efe54c26e2b0
+plot_pop_history(pop_history_max)
+
+# ╔═╡ 1b9984da-8149-4686-847e-12b016fa18f7
+medias_min, stds_min, pop_history_min = ag(max=false)
+
+# ╔═╡ 31bcc5c8-fb79-4193-a3c7-d690e131bdde
+begin
+	fig_media_min = Figure()
+	ax_media_min = Axis(fig_media_min[1, 1], title="media_min aptidao")
+	lines!(ax_media_min, medias_min)
+	fig_media_min
+end
+
+# ╔═╡ 94af48b1-730d-4089-9986-91aca42923d8
+begin
+	fig_std_min = Figure()
+	ax_std_min = Axis(fig_std_min[1, 1], title="std_min aptidao")
+	lines!(ax_std_min, stds_min)
+	fig_std_min
+end
+
+# ╔═╡ 9d7883da-735b-4e93-aa81-2530bdbd6cbe
+plot_pop_history(pop_history_min, max=false)
 
 # ╔═╡ 8c872406-dc3e-4962-815f-9b023d1222de
 md"""
@@ -341,15 +549,15 @@ function init_swarm(f::Function;μ = 1)
     swarm = Vector{Particle}(undef, N_PARTICLES)
  
     for i in 1:N_PARTICLES
-        # Random position in [X_MIN, X_MAX]
+        # posição aleatória entre [X_MIN, X_MAX]
         x = X_MIN .+ (X_MAX - X_MIN) .* rand(N_DIMS)
-        # Random initial velocity in [V_MIN, V_MAX]
+        # velocidade aleatoria entre [V_MIN, V_MAX]
         v = V_MIN .+ (V_MAX - V_MIN) .* rand(N_DIMS)
 
-        penalidade = (x[1]^2 + x[2]^2 - 1)^2 # usei a mesma do AG
-        fitness = f(x) - μ * penalidade
+        #penalidade = (x[1]^2 + x[2]^2 - 1)^2 # usei a mesma do AG
+        #fitness = f(x) - μ * penalidade
  
-        swarm[i] = Particle(x, v, copy(x), fitness)
+        swarm[i] = Particle(x, v, copy(x), fitness(f, x))
     end
  
     return swarm
@@ -373,8 +581,8 @@ Atualizando a velocidade
 
 # ╔═╡ e3c8cc7e-62f4-427e-9f78-75bb44b5cff5
 function update_velocity!(p::Particle, gbest::Vector{Float64}, W::Float64)
-    r1 = rand(N_DIMS)   # random vector for cognitive component
-    r2 = rand(N_DIMS)   # random vector for social component
+    r1 = rand(N_DIMS)   # vetor aleatorio para componente cognitiva
+    r2 = rand(N_DIMS)   # vetor aleatorio para componente social
  
     inertia   = W  .* p.v
     cognitive = C1 .* r1 .* (p.pbest .- p.x)
@@ -382,7 +590,7 @@ function update_velocity!(p::Particle, gbest::Vector{Float64}, W::Float64)
  
     p.v = inertia .+ cognitive .+ social
  
-    # Clamp velocity to [V_MIN, V_MAX] to prevent particles flying off
+    # Limita velocidade [V_MIN, V_MAX] para previnir elas sairem pra mt longe
     p.v = clamp.(p.v, V_MIN, V_MAX)
 end
 
@@ -412,6 +620,15 @@ md"""
 Atualizando o personal best
 """
 
+# ╔═╡ 8f2f1e18-a1b0-4db4-a14a-bb066e81e28a
+function update_pbest!(p::Particle; pond=μ, max=true)
+    f_new = fitness(f, p.x, pond=pond, max=max)
+    if f_new > p.fbest
+        p.fbest = f_new
+        p.pbest = copy(p.x)
+    end
+end
+
 # ╔═╡ 45d72d1f-d0e6-4360-a737-1654ee1c934e
 md"""
 Redução linear da inercia
@@ -423,218 +640,78 @@ function inertia_weight(t::Int)
 end
 
 
-# ╔═╡ 7ba3dca8-cf1f-40e2-b332-7951d4db27f4
-function f_pso(x::Vector{Float64})
-	return (x[1] - 1)^2 + x[2]^2 - 2
-end
-
-# ╔═╡ dc262aca-0967-47f4-ab47-5af47a86724f
-function fitness(x::Vector{Float64}; μ=1)
-    penalidade = (x[1]^2 + x[2]^2 - 1)^2
-    return f_pso(x) - μ * penalidade
-end
-
-# ╔═╡ 3d1cd6d1-fa57-43d4-9d93-03199efc6844
-function torneio(population::Vector{Indv})
-    pop_size = length(population)
-    m = div(pop_size, 2)
-    winners = Set()
-    aptidoes = [fitness(indv.x) for indv in population]
-    
-    idx = Set(1:pop_size)
-
-    for i in m
-        idx1 = pop!(idx, rand(idx))
-        idx2 = pop!(idx, rand(idx))
-
-        indv1 = population[idx1]
-        indv2 = population[idx2]
-        
-        if aptidoes[idx1] > aptidoes[idx2]
-            push!(winners, idx1)
-        else
-            push!(winners, idx2)
-        end
-    end
-    return winners
-end
-
-# ╔═╡ b740d1c4-334d-4b80-a132-5e573726881c
-function ag()
-
-	pond = LinRange(5, 20, GERACOES) # para a ponderacao ir aumentando
-	
-    # gerar população incial
-    population = generate_population(INDVS)
-
-	medias = Vector{Float64}(undef, GERACOES)
-	stds = Vector{Float64}(undef, GERACOES)
-	pop_history = Vector[]
-
-    println("Starting PSO — $(INDVS) particles, $(GERACOES) gerações")
-    println("─────────────────────────────────────────────")
-	
-	for i in 1:GERACOES
-		parents_a = torneio(population)
-		parents_b = torneio(population)
-		new_pop = crossover(population, parents_a, parents_b)
-		mutacao!.(new_pop)
-		
-		population = vcat(population, new_pop)
-		sort!(population, by = indv -> fitness(indv.x), rev=true) # ordena decres
-		population = population[1:INDVS]
-
-    	aptidoes = [fitness(indv.x) for indv in population]
-		medias[i] = mean(aptidoes)
-		stds[i] = std(aptidoes)
-
-		# cada 5 iterações
-        if i % 5 == 0 || i == 1
-            @printf("Iter %4d | Best Indv = %.8f\n", i, aptidoes[1])
-			push!(pop_history, deepcopy(population))  #snapshot
-        end
-
-		if stds[i] < 0.001
-			break # condição de parada
-		end
-		
-	end
-
-	return medias, stds, pop_history
-end
-
-
-# ╔═╡ 7234f6ba-96a1-43c4-9968-51d699029c8a
-medias, stds, pop_history = ag()
-
-# ╔═╡ 5b7613c6-7fb7-4415-a20f-169cf03866b5
-begin
-	fig_media = Figure()
-	ax_media = Axis(fig_media[1, 1], title="media aptidao")
-	lines!(ax_media, medias)
-	fig_media
-end
-
-# ╔═╡ 6b1d7eb2-2aea-47dd-a49e-ea5de7a104ad
-begin
-	fig_std = Figure()
-	ax_std = Axis(fig_std[1, 1], title="std aptidao")
-	lines!(ax_std, stds)
-	fig_std
-end
-
-# ╔═╡ 357454a9-46a5-480a-931a-49270443b6c3
-function plot_pop_history(pop_history::Vector{Vector})
-    n_plots = length(pop_history)
-    n_cols  = 3
-    n_rows  = ceil(Int, n_plots / n_cols)
-
-    fig = Figure(size=(200 * n_cols, 200 * n_rows))
-
-    θ = range(0, 2π, length=100)
-    xc = cos.(θ)
-    yc = sin.(θ)
-
-    for (idx, pop) in enumerate(pop_history)
-        row = ceil(Int, idx / n_cols)
-        col = mod1(idx, n_cols)
-
-        ax = Axis(fig[row, col],
-            title  = "Geração $((idx-1)*5)",
-            limits = ((-2, 2), (-2, 2)),
-            aspect = DataAspect())
-
-        # constraint circle
-        lines!(ax, xc, yc, color=:black, linewidth=1.5)
-
-        # individuals
-        xs = [indv.x[1] for indv in pop]
-        ys = [indv.x[2] for indv in pop]
-        scatter!(ax, xs, ys, color=:blue, markersize=8)
-
-        # best individual of this snapshot
-        best = argmax(fitness(indv.x) for indv in pop)
-        scatter!(ax, [pop[best].x[1]], [pop[best].x[2]],
-            color=:green, marker=:star5, markersize=14)
-
-        # global maximum at (-1, 0)
-        scatter!(ax, [-1.0], [0.0],
-            color=:red, marker=:xcross, markersize=16,
-            strokewidth=2)
-    end
-
-    fig
-end
-
-# ╔═╡ e98da939-a8a7-4fab-b600-efe54c26e2b0
-plot_pop_history(pop_history)
-
-# ╔═╡ 8f2f1e18-a1b0-4db4-a14a-bb066e81e28a
-function update_pbest!(p::Particle; μ=1)
-    f_new = fitness(p.x,μ=μ)
-    if f_new > p.fbest
-        p.fbest = f_new
-        p.pbest = copy(p.x)
-    end
-end
-
 # ╔═╡ b9163554-0c48-4c3d-90fb-f4e70c8213d7
-function pso(f::Function; seed::Int=42, μ=1)
+function pso(f::Function; seed::Int=42, μ=1, max=true)
     Random.seed!(seed)
  
-    # --- Initialise swarm
     swarm = init_swarm(f, μ=μ)
     gbest, gbest_fitness = find_gbest(swarm)
  
-    history = Float64[]   # track best fitness per iteration
+    history = Float64[]
     swarm_history = Vector{Vector{Particle}}()
+    medias = Float64[]
+    stds   = Float64[]
  
     println("Iniciando PSO — $(N_PARTICLES) particulas, $(MAX_ITER) iteracoes")
     println("─────────────────────────────────────────────")
  
     for t in 1:MAX_ITER
  
-        # Compute inertia weight for this iteration
         W = inertia_weight(t)
  
         for p in swarm
-            # Step 5: update velocity (cognitive + social + inertia)
             update_velocity!(p, gbest, W)
- 
-            # Step 6: update position
             update_position!(p)
- 
-            # Step 7: update personal best
-            update_pbest!(p, μ=μ)
+            update_pbest!(p, pond=μ, max=max)
         end
  
-        # Step 8: update global best across whole swarm
         gbest, gbest_fitness = find_gbest(swarm)
         push!(history, gbest_fitness)
+
+        # mean and std of current fitness across all particles
+        aptidoes = [fitness(f, p.x, max=max, pond=μ) for p in swarm]
+        push!(medias, mean(aptidoes))
+        push!(stds,   std(aptidoes))
  
-        # Print progress every 10 iterations
         if t % 10 == 0 || t == 1
             @printf("Iter %4d | W = %.3f | gbest fitness = %.8f\n",
                     t, W, gbest_fitness)
-            push!(swarm_history, deepcopy(swarm))  # deepcopy — full snapshot
+            push!(swarm_history, deepcopy(swarm))
         end
-    
+
+        if stds[t] < 0.01
+			break # condição de parada
+		end
     end
-
-
     
     println("─────────────────────────────────────────────")
     println("Melhor posicao : ", round.(gbest, digits=6))
     println("Melhor aptidao  : ", round(gbest_fitness, digits=10))
  
-    return gbest, gbest_fitness, history, swarm_history
+    return gbest, gbest_fitness, history, swarm_history, medias, stds
 end
 
 # ╔═╡ 5f31b89f-d11c-4389-97ff-2b36dbdd3505
-gbest, gbest_fitness, history, swarm_history = pso(f_pso, μ=20)
+gbest_max, gbest_fitness_max, history_max, swarm_history_max, medias_pso_max, stds_pso_max = pso(f, μ=20)
+
+# ╔═╡ 33f532ed-d340-463e-8784-e95e2c203adb
+begin
+	fig_medias_pso_max = Figure()
+	ax_medias_pso_max = Axis(fig_medias_pso_max[1, 1], title="media_pso_max aptidao")
+	lines!(ax_medias_pso_max, medias_pso_max)
+	fig_medias_pso_max
+end
+
+# ╔═╡ 3065be8c-1e28-4a4f-92bf-1cbfdc2c7fbc
+begin
+	fig_stds_pso_max = Figure()
+	ax_stds_pso_max = Axis(fig_stds_pso_max[1, 1], title="stds_pso_max aptidao")
+	lines!(ax_stds_pso_max, stds_pso_max)
+	fig_stds_pso_max
+end
 
 # ╔═╡ d354cf49-40cd-4fdf-9e43-d2357fd44b4a
-function plot_swarm_history(swarm_history::Vector{Vector{Particle}})
+function plot_swarm_history(swarm_history::Vector{Vector{Particle}}; max=true)
     n_plots = length(swarm_history)
     n_cols  = 3
     n_rows  = ceil(Int, n_plots / n_cols)
@@ -668,20 +745,95 @@ function plot_swarm_history(swarm_history::Vector{Vector{Particle}})
             color=:green, marker=:star5, markersize=14, label="gbest")
 
         # global maximum marker at (-1, 0)
-        scatter!(ax, [-1.0], [0.0],
-            color=:red, marker=:xcross, markersize=16,
-            strokewidth=2, label="máximo")
+        if max
+            scatter!(ax, [-1.0], [0.0],
+                color=:red, marker=:xcross, markersize=16,
+                strokewidth=2, label="máximo")
+        else
+            scatter!(ax, [1.0], [0.0],
+                color=:red, marker=:xcross, markersize=16,
+                strokewidth=2, label="máximo")
+        end
+        
     end
 
     fig
 end
 
 # ╔═╡ 4f906b8b-f572-4a0c-bbe5-1750a82c39cb
-plot_swarm_history(swarm_history)
+plot_swarm_history(swarm_history_max)
+
+# ╔═╡ 35951210-ea4e-4a60-bb89-4b50950c982c
+gbest_min, gbest_fitness_min, history_min, swarm_history_min, medias_pso_min, stds_pso_min = pso(f, μ=20, max=false)
+
+# ╔═╡ fd7de548-194c-4fbc-ba86-8d05f26c062c
+begin
+	fig_medias_pso_min = Figure()
+	ax_medias_pso_min = Axis(fig_medias_pso_min[1, 1], title="media_pso_min aptidao")
+	lines!(ax_medias_pso_min, medias_pso_min)
+	fig_medias_pso_min
+end
+
+# ╔═╡ 83662935-5e25-40bf-bed5-e79cb1396e53
+begin
+	fig_stds_pso_min = Figure()
+	ax_stds_pso_min = Axis(fig_stds_pso_min[1, 1], title="stds_pso_min aptidao")
+	lines!(ax_stds_pso_min, stds_pso_min)
+	fig_stds_pso_min
+end
+
+# ╔═╡ 90ba8ebf-54bf-427f-9e04-8681eb05233f
+plot_swarm_history(swarm_history_min, max=false)
 
 # ╔═╡ 268acbf7-0a33-4605-9a8b-b88e0f62a34b
 md"""
 ## Comparação entre os algortimos
+"""
+
+# ╔═╡ 32306181-1b71-48ef-99cb-f84c379bf6d1
+md"""
+### Sobre a eficiência
+O PSO encontrou o maximo e o mínimo de muito bem, com todas as partículas convergindo para o ótimo. Talvez ajustando alguns parâmetros como: inércia e velocidade, o algoritimo poderia vir a convergir mais rápido.
+
+Já para o AG, o mínimo foi atingido com sucesso ,convergiu bem (melhor e mais rápido que o PSO) e atingiu o critério de parada. Entretato para o máximo ele não convergiu para o ótimo de fato. Isso pode ter ocorrido por conta da forma que a penalidade foi implementada, talvez exista uma forma mais efeciente de encontrar o μ que seja coerente com o problema. Uma fez que a aptidão ficou descrita como:
+
+$$fitness(x, y) = f(x, y) - μ * \big(r(x, y) - z\big)^2$$
+
+para maximização. E:
+
+$$fitness(x, y) = -f(x, y) - μ * \big(r(x, y) - z\big)^2$$
+
+para minimização.
+
+Ambas tinham o mesmo critério de parada (devio padrão das aptidões < 0.01), mas só p AG satisfez a condição de parada.
+"""
+
+# ╔═╡ 9a7c3330-977b-4e6c-a339-b173218390e2
+md"""
+### Sobre a implementação 
+O PSO foi bem mais facil, pois se trata apenas de uma regra de atualização das velocidades e das posições. Não existem muitas formas diferentes de implementar, apenas escolher os parâmetros de forma correta. 
+
+Por outro lado o AG tem diversas variações, desde a forma de se representar os indivíduos até regras de crossover, seleção. Além dos parâmetro como taxa de mutação, crossover, etc.
+Dessa forma o AG foi muito mais difícil de escolher a implementação, entretanto bem mais original. Já a parte de código em si não foi tão complexa, uma vez já decidida a abordagem
+"""
+
+# ╔═╡ c92e06ea-ba89-4289-9a0a-4d23663529df
+md"""
+### Eficiência Computacional:
+
+O Algoritmo Genético implementado apresenta um custo computacional maior por geração em comparação ao PSO. Isso se deve principalmente às etapas de torneio, crossover e mutação, que envolvem manipulação de vetores de bits e múltiplas alocações de memória a cada geração. Além disso, a etapa de ordenação da população — necessária para o selecionar os mehores — tem custo $\mathcal{O}(N \log N)$ por geração. O PSO, por outro lado, é mais simples: cada partícula atualiza sua velocidade e posição com operações vetoriais diretas, sem alocações intermediárias significativas, o que o torna mais eficiente por iteração.
+
+Em contrapartida, o GA demonstrou maior robustez na satisfação da restrição $x^2 + y^2 = 1$, especialmente com a estratégia de penalidade alta nas primeiras gerações ($\mu = 20$). O PSO convergiu mais rapidamente para a região ótima, porém mostrou maior sensibilidade ao parâmetro $\mu$ da penalidade — um $\mu$ mal calibrado pode fazer as partículas ignorarem a restrição ou ficarem presas longe do ótimo. No geral, para problemas de baixa dimensão como este ($n = 2$), ambos os algoritmos convergem em poucas iterações, mas o PSO leva vantagem em velocidade, enquanto o GA oferece maior controle sobre a diversidade da população.
+"""
+
+# ╔═╡ d199ab91-dbed-407b-840c-1e6726199a23
+md"""
+## Conclusão
+
+O Algorítimo Genético tem um custo computacional maior e convergiu melhor. entretando é preciso estudar o parâmetro do peso na penalidade de restrição no problema de maximização.
+
+O PSO é extremamente robusto e com custo computacional menor. Entretanto há muitos parâmetros para ajustar que podem melhorar o seu tempo de convergência.
+
 """
 
 # ╔═╡ 00000000-0000-0000-0000-000000000001
@@ -2348,9 +2500,10 @@ version = "4.1.0+0"
 """
 
 # ╔═╡ Cell order:
-# ╠═0e9406c8-65c2-11f1-becf-a1d69c52f94f
-# ╠═c1129640-fcc8-4059-9e2e-1e61af138465
-# ╠═9ebcf1e0-9768-4ea8-9879-8a00b2a39c58
+# ╟─0e9406c8-65c2-11f1-becf-a1d69c52f94f
+# ╟─c1129640-fcc8-4059-9e2e-1e61af138465
+# ╟─9ebcf1e0-9768-4ea8-9879-8a00b2a39c58
+# ╟─687b5b3a-2a52-4e5a-9976-64973342b5cc
 # ╟─72413dda-5121-4722-b0cf-85b99d77f762
 # ╟─1af3418c-b98e-4f52-bfda-2cdc9f32acf1
 # ╟─b8083727-3a03-4fcf-842b-c42c1f28df9f
@@ -2368,7 +2521,9 @@ version = "4.1.0+0"
 # ╟─cdd85e02-9786-4cfc-bffd-26b1c8a73c8a
 # ╠═306fe017-da30-4871-8606-c62a4e1a330e
 # ╟─14a6ee83-bd4b-466a-b193-ca7773bbabc2
+# ╠═acac16f3-5a1f-4073-adcc-3531e80b6cc4
 # ╠═30441865-da0d-4e1b-adde-cf67896373fa
+# ╟─82bdaa93-f722-4368-a53c-faec19076ee0
 # ╟─5ec82d64-75ec-473f-acb7-f66b4cf175c6
 # ╟─08b228bd-d3f6-411c-bb2b-a9910dd3d2fa
 # ╠═3d1cd6d1-fa57-43d4-9d93-03199efc6844
@@ -2379,12 +2534,17 @@ version = "4.1.0+0"
 # ╟─d94f7a8a-cf6a-498e-8742-1ebbc79a2954
 # ╠═3e9dd45f-4d2c-489b-8658-a53275269d8a
 # ╟─3c730587-9aec-4a5e-8576-5ec4f6ff5431
+# ╟─ad52ff37-c08c-4c4c-87d9-a667a673b817
 # ╠═b740d1c4-334d-4b80-a132-5e573726881c
-# ╠═7234f6ba-96a1-43c4-9968-51d699029c8a
+# ╟─7234f6ba-96a1-43c4-9968-51d699029c8a
 # ╟─5b7613c6-7fb7-4415-a20f-169cf03866b5
 # ╟─6b1d7eb2-2aea-47dd-a49e-ea5de7a104ad
 # ╟─357454a9-46a5-480a-931a-49270443b6c3
-# ╠═e98da939-a8a7-4fab-b600-efe54c26e2b0
+# ╟─e98da939-a8a7-4fab-b600-efe54c26e2b0
+# ╠═1b9984da-8149-4686-847e-12b016fa18f7
+# ╟─31bcc5c8-fb79-4193-a3c7-d690e131bdde
+# ╟─94af48b1-730d-4089-9986-91aca42923d8
+# ╟─9d7883da-735b-4e93-aa81-2530bdbd6cbe
 # ╟─8c872406-dc3e-4962-815f-9b023d1222de
 # ╟─202444e9-d600-45cf-a25c-eb7ce689c404
 # ╟─6f2e9b7e-891e-464b-8246-a58bce604418
@@ -2392,7 +2552,6 @@ version = "4.1.0+0"
 # ╟─e138ad90-b585-483d-afaf-5120a8bb59a0
 # ╠═872a2042-9949-4558-acec-c00557633ceb
 # ╟─2764c982-5690-4ad2-a969-2459734e5a51
-# ╠═dc262aca-0967-47f4-ab47-5af47a86724f
 # ╠═ebf4ae26-bd58-4bb4-bf9f-3a0e92e23a88
 # ╟─3b9877ba-142a-4926-aacd-bcaf1729ac02
 # ╠═a1806c6e-ca52-4b6b-a12c-ab83469082d5
@@ -2404,12 +2563,20 @@ version = "4.1.0+0"
 # ╠═8f2f1e18-a1b0-4db4-a14a-bb066e81e28a
 # ╟─45d72d1f-d0e6-4360-a737-1654ee1c934e
 # ╠═97216d3c-3fcc-4110-9f48-772638bf3baa
-# ╟─bce9f970-b828-4f1e-bb0b-750291eb9984
 # ╠═b9163554-0c48-4c3d-90fb-f4e70c8213d7
-# ╠═7ba3dca8-cf1f-40e2-b332-7951d4db27f4
-# ╠═5f31b89f-d11c-4389-97ff-2b36dbdd3505
+# ╟─5f31b89f-d11c-4389-97ff-2b36dbdd3505
+# ╟─33f532ed-d340-463e-8784-e95e2c203adb
+# ╟─3065be8c-1e28-4a4f-92bf-1cbfdc2c7fbc
 # ╟─d354cf49-40cd-4fdf-9e43-d2357fd44b4a
-# ╠═4f906b8b-f572-4a0c-bbe5-1750a82c39cb
+# ╟─4f906b8b-f572-4a0c-bbe5-1750a82c39cb
+# ╟─35951210-ea4e-4a60-bb89-4b50950c982c
+# ╟─fd7de548-194c-4fbc-ba86-8d05f26c062c
+# ╟─83662935-5e25-40bf-bed5-e79cb1396e53
+# ╠═90ba8ebf-54bf-427f-9e04-8681eb05233f
 # ╟─268acbf7-0a33-4605-9a8b-b88e0f62a34b
+# ╟─32306181-1b71-48ef-99cb-f84c379bf6d1
+# ╟─9a7c3330-977b-4e6c-a339-b173218390e2
+# ╟─c92e06ea-ba89-4289-9a0a-4d23663529df
+# ╟─d199ab91-dbed-407b-840c-1e6726199a23
 # ╟─00000000-0000-0000-0000-000000000001
 # ╟─00000000-0000-0000-0000-000000000002
